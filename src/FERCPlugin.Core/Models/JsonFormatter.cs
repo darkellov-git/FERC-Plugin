@@ -1,9 +1,23 @@
 ﻿using Newtonsoft.Json.Linq;
+using System;
+using System.IO;
 
 namespace FERCPlugin.Core.Models
 {
     public class JsonFormatter
     {
+        private static readonly string[] ElementsToRemove = new[]
+        {
+            "partsSpec",
+            "automaticSpec",
+            "priceTotal",
+            "massTotal",
+            "partsSpecSkeleton",
+            "partsSpecStands",
+            "partsSpecPanels",
+            "partsSpecFrame"
+        };
+
         public void FormatJson(string inputFilePath)
         {
             if (!File.Exists(inputFilePath))
@@ -15,11 +29,8 @@ namespace FERCPlugin.Core.Models
 
             JObject rootObj = JObject.Parse(jsonContent);
 
-            JToken drawingToken = rootObj.SelectToken("result.drawing");
-            if (drawingToken == null)
-            {
-                throw new Exception("В исходном файле не найден объект 'result.drawing'.");
-            }
+            JToken drawingToken = rootObj.SelectToken("result.drawing") ?? throw new Exception("В исходном файле не найден объект 'result.drawing'.");
+            RemoveUnwantedElements(drawingToken);
 
             string formattedJson = drawingToken.ToString(Newtonsoft.Json.Formatting.Indented);
 
@@ -27,9 +38,32 @@ namespace FERCPlugin.Core.Models
             string outputFilePath = Path.Combine(directory, "drawing_formatted.json");
 
             File.WriteAllText(outputFilePath, formattedJson);
+        }
 
-            Console.WriteLine($"Преобразованный файл сохранён: {outputFilePath}");
+        private void RemoveUnwantedElements(JToken token)
+        {
+            if (token is JObject obj)
+            {
+                foreach (string element in ElementsToRemove)
+                {
+                    if (obj.ContainsKey(element))
+                    {
+                        obj.Remove(element);
+                    }
+                }
+
+                foreach (JProperty property in obj.Properties())
+                {
+                    RemoveUnwantedElements(property.Value);
+                }
+            }
+            else if (token is JArray array)
+            {
+                foreach (JToken item in array)
+                {
+                    RemoveUnwantedElements(item);
+                }
+            }
         }
     }
 }
- 
