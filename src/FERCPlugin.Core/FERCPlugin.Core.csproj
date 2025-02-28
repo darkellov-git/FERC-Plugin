@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Choose>
+    <When Condition=" '$(Configuration)|$(Platform)' == 'Release2025|x64' ">
+      <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+      </PropertyGroup>
+    </When>
+    <Otherwise>
+      <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+      </PropertyGroup>
+    </Otherwise>
+  </Choose>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>
