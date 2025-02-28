@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\lopat\\source\\repos\\FERCPlugin\\src\\FERCPlugin.Core\\FERCPlugin.Core.csproj": {}
+    "C:\\Users\\lopat\\source\\repos\\FERC-Plugin\\src\\FERCPlugin.Core\\FERCPlugin.Core.csproj": {}
   },
   "projects": {
-    "C:\\Users\\lopat\\source\\repos\\FERCPlugin\\src\\FERCPlugin.Core\\FERCPlugin.Core.csproj": {
+    "C:\\Users\\lopat\\source\\repos\\FERC-Plugin\\src\\FERCPlugin.Core\\FERCPlugin.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\lopat\\source\\repos\\FERCPlugin\\src\\FERCPlugin.Core\\FERCPlugin.Core.csproj",
+        "projectUniqueName": "C:\\Users\\lopat\\source\\repos\\FERC-Plugin\\src\\FERCPlugin.Core\\FERCPlugin.Core.csproj",
         "projectName": "FERCPlugin.Core",
-        "projectPath": "C:\\Users\\lopat\\source\\repos\\FERCPlugin\\src\\FERCPlugin.Core\\FERCPlugin.Core.csproj",
+        "projectPath": "C:\\Users\\lopat\\source\\repos\\FERC-Plugin\\src\\FERCPlugin.Core\\FERCPlugin.Core.csproj",
         "packagesPath": "C:\\Users\\lopat\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\lopat\\source\\repos\\FERCPlugin\\src\\FERCPlugin.Core\\obj\\",
+        "outputPath": "C:\\Users\\lopat\\source\\repos\\FERC-Plugin\\src\\FERCPlugin.Core\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\lopat\\source\\repos\\FERCPlugin\\NuGet.Config",
+          "C:\\Users\\lopat\\source\\repos\\FERC-Plugin\\NuGet.Config",
           "C:\\Users\\lopat\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
@@ -53,7 +53,7 @@
             "Autodesk.Revit.SDK": {
               "suppressParent": "All",
               "target": "Package",
-              "version": "[2020.*, )"
+              "version": "[2023.*, )"
             },
             "NETStandard.Library": {
               "suppressParent": "All",

@@ -37,10 +37,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="Resources\Icons\Icon_32.png" />
     <None Remove="Resources\testCommand.png" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Resources\Icons\testCommand.png" />
+    <Resource Include="Resources\Icons\Icon_32.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
   </ItemGroup>
 </Project>

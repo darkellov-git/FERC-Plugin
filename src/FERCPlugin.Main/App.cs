@@ -4,30 +4,21 @@ using Autodesk.Revit.UI;
 using Ninject;
 using FERCPlugin.Core.Models;
 using TaskDialog = Autodesk.Revit.UI.TaskDialog;
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Windows.Media.Imaging;
 
 namespace FERCPlugin.Main
 {
-    /// <summary>
-    /// The main application defined in this add-in
-    /// </summary>
-    /// <seealso cref="IExternalApplication" />
     [Transaction(TransactionMode.Manual)]
     [Regeneration(RegenerationOption.Manual)]
     public class App : IExternalApplication
     {
         private UIControlledApplication _uiControlledApplication;
 
-        /// <summary>
-        /// Represents the singleton instance of the dependency injection container.
-        /// </summary>
         public static IKernel ServiceLocator { get; private set; }
 
-        /// <summary>
-        /// Called when [startup].
-        /// </summary>
-        /// <param name="application">The UI control application.</param>
-        /// <returns></returns>
-        /// ReSharper disable once ParameterHidesMember
         public Result OnStartup(UIControlledApplication application)
         {
             this._uiControlledApplication = application;
@@ -39,7 +30,7 @@ namespace FERCPlugin.Main
 
             try
             {
-                // TODO: add you code here
+                // Your code here
             }
             catch (Exception ex)
             {
@@ -50,15 +41,11 @@ namespace FERCPlugin.Main
             return Result.Succeeded;
         }
 
-        /// <summary>
-        /// Called when [shutdown].
-        /// </summary>
-        /// <param name="application">The application.</param>
         public Result OnShutdown(UIControlledApplication application)
         {
             try
             {
-                // TODO: add you code here
+                // Your shutdown code here
             }
             catch (Exception ex)
             {
@@ -71,34 +58,52 @@ namespace FERCPlugin.Main
 
         private void ControlledApplicationOnApplicationInitialized(object sender, ApplicationInitializedEventArgs e)
         {
-            // TODO: Here you can activate your Dockable Pane. (If applicable)
             var appDataProperties = ServiceLocator.Get<IApplicationDataProperties>();
             _uiControlledApplication.ViewActivated += appDataProperties.OnViewActivatedSubscriber;
         }
 
         private void InitializeRibbon()
         {
-            // TODO declare your ribbon items here
-            var ribbonItems = new List<RibbonHelper.RibbonButton>
+            // Step 1: Create a new Ribbon Tab
+            try
             {
-                new RibbonHelper.RibbonButton<RibbonCommand>
-                {
-                    Text     = Resources.MainButtonName,
-                    Tooltip  = Resources.MainButtonTooltip,
-                    IconName = "Resources.Icons.testCommand.png",
-                },
-            };
+                string ribbonTabName = "FERC"; // Direct string for the tab name
+                _uiControlledApplication.CreateRibbonTab(ribbonTabName);
+            }
+            catch (Autodesk.Revit.Exceptions.ArgumentException)
+            {
+                // Ignore if the tab already exists
+            }
 
-            RibbonHelper.AddButtons(_uiControlledApplication,
-                                    ribbonItems,
-                                    ribbonPanelName: Resources.RibbonPanelName,
-                                    ribbonTabName: Resources.RibbonTabName);
+            // Step 2: Create a Ribbon Panel
+            RibbonPanel ribbonPanel = _uiControlledApplication.CreateRibbonPanel("FERC", "Main Panel");
+
+            // Step 3: Create a PushButton for the Ribbon
+            string buttonText = "Create Family"; // Direct string for the button name
+            string buttonTooltip = "Allows you to create a new ventilation object family automatically"; // Tooltip string
+
+            // Create PushButton with direct references to the RibbonCommand
+            PushButton pushButton = ribbonPanel.AddItem(new PushButtonData("cmdCreateFamily", buttonText,
+                Assembly.GetExecutingAssembly().Location, "FERCPlugin.Main.RibbonCommand")) as PushButton;
+
+            if (pushButton != null)
+            {
+                pushButton.ToolTip = buttonTooltip;
+                pushButton.LargeImage = new BitmapImage(new Uri("file:///C:/path/to/your/project/Resources/Icons/Icon_32.png"));
+            }
         }
 
         private void InitializeDependencies()
         {
             ServiceLocator = new StandardKernel();
             ServiceLocator.Load(new DependencyInjectionManager());
+        }
+
+        // Helper function to load icon
+        private static System.Windows.Media.Imaging.BitmapImage GetIcon(string iconPath)
+        {
+            var uri = new Uri($"pack://application:,,,/{iconPath}");
+            return new System.Windows.Media.Imaging.BitmapImage(uri);
         }
     }
 }

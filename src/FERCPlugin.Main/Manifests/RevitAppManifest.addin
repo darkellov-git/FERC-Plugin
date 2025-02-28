@@ -2,11 +2,11 @@
 <RevitAddIns>
   <AddIn Type="Application">
    <FullClassName>FERCPlugin.Main.App</FullClassName>
-   <ClientId>00000000-0000-0000-0000-000000000001</ClientId>
-   <Name>== Edit in project's properties ==</Name>
-   <Assembly>FERCPlugin.Main.dll</Assembly>
-   <VendorId>== Edit in project's properties ==</VendorId>
-   <VendorDescription>== Edit (company + authors + website) in project's properties ==</VendorDescription>
+   <ClientId>00000000-0000-0000-0000-000000000002</ClientId>
+   <Name>FERCPlugin</Name>
+   <Assembly>C:\Users\lopat\source\repos\FERC-Plugin\bin\Debug\net48\FERCPlugin.Main.dll</Assembly>
+   <VendorId>FERC</VendorId>
+   <VendorDescription>FERC</VendorDescription>
  </AddIn>
 </RevitAddIns>
 

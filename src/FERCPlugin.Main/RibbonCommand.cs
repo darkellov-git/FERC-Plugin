@@ -26,7 +26,8 @@ namespace FERCPlugin.Main
 
             JsonFormatter jsonFormatter = new();
 
-            string folderPath = @"C:\Users\a.lapatniou\Downloads";
+            string folderPath = @"C:\Users\lopat\source\repos";
+            //string folderPath = @"C:\Users\a.lapatniou\Downloads";
 
             string inputFilePath = Path.Combine(folderPath, "drawing.json");
 

@@ -4,7 +4,7 @@
 library
 C#
 .cs
-C:\Users\lopat\Source\Repos\vs-template-revit-addin\src\FERCPlugin.UI\obj\x64\Debug\net8.0-windows\
+C:\Users\lopat\source\repos\FERC-Plugin\src\FERCPlugin.UI\obj\x64\Debug\net8.0-windows\
 FERCPlugin.UI
 none
 false
@@ -13,7 +13,7 @@ DEBUG;TRACE;DEBUG;NET;NET8_0;NETCOREAPP
 1-1644662438
 
 51302549046
-2272046254943
+228-1073954497
 Views\MainWindow.xaml;
 
 False
