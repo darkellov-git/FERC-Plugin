@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+   <FullClassName>FERCPlugin.Main.App</FullClassName>
+   <ClientId>00000000-0000-0000-0000-000000000001</ClientId>
+   <Name>== Edit in project's properties ==</Name>
+   <Assembly>FERCPlugin.Main.dll</Assembly>
+   <VendorId>== Edit in project's properties ==</VendorId>
+   <VendorDescription>== Edit (company + authors + website) in project's properties ==</VendorDescription>
+ </AddIn>
+</RevitAddIns>
+

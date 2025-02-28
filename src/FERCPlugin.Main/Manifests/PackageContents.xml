@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ApplicationPackage SchemaVersion="1.0" AutodeskProduct="Revit" ProductType="Application" AppVersion="1.0.0"
+                    SupportedLocales="Enu" ProductCode="C4717035-85E1-451C-94AA-7333E798F0A1">
+  <CompanyDetails Name="VendorName" Url="https://VendorUrl.com/" Email="email@vendor.com"/>
+  <Components Description="Contents 2020">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2020" SeriesMax="R2020"/>
+    <ComponentEntry AppName="Revit Template" ModuleName="./Contents/Revit 2020/RevitAppManifest.addin"/>
+  </Components>
+  <Components Description="Contents 2021">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2021" SeriesMax="R2021"/>
+    <ComponentEntry AppName="Revit Template" ModuleName="./Contents/Revit 2021/RevitAppManifest.addin"/>
+  </Components>
+  <Components Description="Contents 2022">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2022" SeriesMax="R2022"/>
+    <ComponentEntry AppName="Revit Template" ModuleName="./Contents/Revit 2022/RevitAppManifest.addin"/>
+  </Components>
+  <Components Description="Contents 2023">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2023" SeriesMax="R2023"/>
+    <ComponentEntry AppName="Revit Template" ModuleName="./Contents/Revit 2023/RevitAppManifest.addin"/>
+  </Components>
+  <Components Description="Contents 2024">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2024" SeriesMax="R2024"/>
+    <ComponentEntry AppName="Revit Template" ModuleName="./Contents/Revit 2024/RevitAppManifest.addin"/>
+  </Components>
+  <Components Description="Contents 2025">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2025" SeriesMax="R2025"/>
+    <ComponentEntry AppName="Revit Template" ModuleName="./Contents/Revit 2025/RevitAppManifest.addin"/>
+  </Components>
+</ApplicationPackage>

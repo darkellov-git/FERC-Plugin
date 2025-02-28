@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <Choose>
+    <When Condition=" '$(Configuration)|$(Platform)' == 'Release2025|x64' ">
+      <PropertyGroup>
+        <TargetFramework>net8.0-windows</TargetFramework>
+      </PropertyGroup>
+    </When>
+    <Otherwise>
+      <PropertyGroup>
+        <TargetFramework>net48</TargetFramework>
+      </PropertyGroup>
+    </Otherwise>
+  </Choose>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Ninject" Version="3.3.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Manifests\RevitAppManifest.addin" />
+
+    <Content Include="Properties\launchSettings.json">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FERCPlugin.Core\FERCPlugin.Core.csproj" />
+    <ProjectReference Include="..\FERCPlugin.UI\FERCPlugin.UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Resources\testCommand.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Icons\testCommand.png" />
+  </ItemGroup>
+</Project>

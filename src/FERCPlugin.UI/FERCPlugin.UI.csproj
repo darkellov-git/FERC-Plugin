@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <Choose>
+    <When Condition=" '$(Configuration)|$(Platform)' == 'Release2025|x64' ">
+      <PropertyGroup>
+        <TargetFramework>net8.0-windows</TargetFramework>
+      </PropertyGroup>
+    </When>
+    <Otherwise>
+      <PropertyGroup>
+        <TargetFrameworks>net48;net8.0-windows</TargetFrameworks>
+      </PropertyGroup>
+    </Otherwise>
+  </Choose>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FERCPlugin.Core\FERCPlugin.Core.csproj" />
+  </ItemGroup>
+</Project>
