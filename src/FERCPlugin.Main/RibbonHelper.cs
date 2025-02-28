@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Windows.Interop;
@@ -83,81 +82,52 @@ namespace FERCPlugin.Main
         /// <inheritdoc />
         /// <seealso cref="Equipple.Revit.FamilyBrowser.Ribbon.RibbonHelper.RibbonButton" />
         public class RibbonButton<T> : RibbonButton
-    where T : class, IExternalCommand
+            where T : class, IExternalCommand
         {
             private readonly Assembly _commandAssemly;
             private readonly string _rootNameSpace;
 
+            /// <summary>
+            /// Initializes a new instance of the <see cref="RibbonButton{T}"/> class.
+            /// </summary>
             public RibbonButton()
             {
                 _commandAssemly = typeof(T).Assembly;
                 _rootNameSpace = _commandAssemly.GetName().Name;
             }
 
+            /// <inheritdoc />
             public override string Text { get; internal set; }
 
-            // Загрузка иконки с использованием ресурсов
-            public override Bitmap Icon
-            {
-                get
-                {
-                    if (string.IsNullOrWhiteSpace(IconName))
-                        return null;
+            /// <inheritdoc />
+            public override Bitmap Icon => string.IsNullOrWhiteSpace(IconName)
+                ? null
 
-                    try
-                    {
-                        // Создаем путь к ресурсу, предполагая, что иконка находится в Resources/Icons
-                        string resourceName = $"{_rootNameSpace}.Resources.Icons.{IconName}";
+                // ReSharper disable once AssignNullToNotNullAttribute
+                : new Bitmap(_commandAssemly.GetManifestResourceStream($"{_rootNameSpace}.{IconName}"));
 
-                        // Получаем поток ресурса
-                        using (Stream iconStream = _commandAssemly.GetManifestResourceStream(resourceName))
-                        {
-                            if (iconStream != null)
-                            {
-                                return new Bitmap(iconStream);
-                            }
-                            else
-                            {
-                                TaskDialog.Show("Error", "Icon stream is null. Icon not found.");
-                                return null;
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        TaskDialog.Show("Error", $"Failed to load icon: {ex.Message}");
-                        return null;
-                    }
-                }
-            }
-
+            /// <inheritdoc />
             public override string IconName { get; internal set; }
 
+            /// <inheritdoc />
             public override string Tooltip { get; internal set; } = string.Empty;
 
-            public override Bitmap TooltipIcon
-            {
-                get
-                {
-                    if (string.IsNullOrWhiteSpace(TooltipName))
-                        return null;
+            /// <inheritdoc />
+            public override Bitmap TooltipIcon => string.IsNullOrWhiteSpace(TooltipName)
+                ? null
 
-                    // Загрузка иконки тултипа
-                    string resourceName = $"{_rootNameSpace}.Resources.Icons.{TooltipName}";
-                    using (Stream tooltipIconStream = _commandAssemly.GetManifestResourceStream(resourceName))
-                    {
-                        return tooltipIconStream != null ? new Bitmap(tooltipIconStream) : null;
-                    }
-                }
-            }
+                // ReSharper disable once AssignNullToNotNullAttribute
+                : new Bitmap(_commandAssemly.GetManifestResourceStream($"{_rootNameSpace}.{TooltipName}"));
 
+            /// <inheritdoc />
             public override string TooltipName { get; internal set; }
 
+            /// <inheritdoc />
             public override Type Command { get; } = typeof(T);
 
+            /// <inheritdoc />
             public override string AssemblyPath { get; } = typeof(T).Assembly.Location;
         }
-
 
         /// <summary>
         /// Ribbon button item abstract helper
@@ -256,15 +226,13 @@ namespace FERCPlugin.Main
                 {
                     LongDescription = item.Tooltip,
                     ToolTip = item.Tooltip,
-                    // Используем только 32x32 изображение
-                    Image = (item.Icon is null) ? null : ConvertFromImage(new Bitmap(item.Icon, 32, 32)),
+                    Image = (item.Icon is null) ? null : ConvertFromImage(new Bitmap(item.Icon, 16, 16)),
                     LargeImage = (item.Icon is null) ? null : ConvertFromImage(new Bitmap(item.Icon, 32, 32)),
-                    // Убираем TooltipImage
-                    ToolTipImage = null,
+                    ToolTipImage =
+                        (item.TooltipIcon is null) ? null : ConvertFromImage(new Bitmap(item.TooltipIcon, 192, 192)),
                     AvailabilityClassName = item.AvailabilityClassName,
                 };
             }
-
         }
     }
 }

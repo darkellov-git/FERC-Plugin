@@ -8,6 +8,9 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Windows.Media.Imaging;
+using Autodesk.Revit.DB;
+using System.IO;
+using System.Windows;
 
 namespace FERCPlugin.Main
 {
@@ -30,7 +33,6 @@ namespace FERCPlugin.Main
 
             try
             {
-                // Your code here
             }
             catch (Exception ex)
             {
@@ -45,7 +47,6 @@ namespace FERCPlugin.Main
         {
             try
             {
-                // Your shutdown code here
             }
             catch (Exception ex)
             {
@@ -64,10 +65,9 @@ namespace FERCPlugin.Main
 
         private void InitializeRibbon()
         {
-            // Step 1: Create a new Ribbon Tab
             try
             {
-                string ribbonTabName = "FERC"; // Direct string for the tab name
+                string ribbonTabName = "FERC"; 
                 _uiControlledApplication.CreateRibbonTab(ribbonTabName);
             }
             catch (Autodesk.Revit.Exceptions.ArgumentException)
@@ -75,21 +75,26 @@ namespace FERCPlugin.Main
                 // Ignore if the tab already exists
             }
 
-            // Step 2: Create a Ribbon Panel
-            RibbonPanel ribbonPanel = _uiControlledApplication.CreateRibbonPanel("FERC", "Main Panel");
+            RibbonPanel ribbonPanel = _uiControlledApplication.CreateRibbonPanel("FERC", "FERC");
 
-            // Step 3: Create a PushButton for the Ribbon
-            string buttonText = "Create Family"; // Direct string for the button name
-            string buttonTooltip = "Allows you to create a new ventilation object family automatically"; // Tooltip string
+            string buttonText = "Create Family";
 
-            // Create PushButton with direct references to the RibbonCommand
-            PushButton pushButton = ribbonPanel.AddItem(new PushButtonData("cmdCreateFamily", buttonText,
-                Assembly.GetExecutingAssembly().Location, "FERCPlugin.Main.RibbonCommand")) as PushButton;
 
-            if (pushButton != null)
+            if(ribbonPanel.AddItem(new PushButtonData("cmdCreateFamily", buttonText,
+                Assembly.GetExecutingAssembly().Location, "FERCPlugin.Main.RibbonCommand")) is PushButton pushButton)
             {
-                pushButton.ToolTip = buttonTooltip;
-                pushButton.LargeImage = new BitmapImage(new Uri("file:///C:/path/to/your/project/Resources/Icons/Icon_32.png"));
+                string pluginDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+
+                string iconPath = Path.Combine(pluginDirectory, "Icon_32.png");
+
+                if (File.Exists(iconPath))
+                {
+                    pushButton.LargeImage = new BitmapImage(new Uri($"file:///{iconPath}"));
+                }
+                else
+                {
+                    System.Windows.MessageBox.Show($"Icon not found at path:\n{iconPath}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
@@ -99,7 +104,6 @@ namespace FERCPlugin.Main
             ServiceLocator.Load(new DependencyInjectionManager());
         }
 
-        // Helper function to load icon
         private static System.Windows.Media.Imaging.BitmapImage GetIcon(string iconPath)
         {
             var uri = new Uri($"pack://application:,,,/{iconPath}");
