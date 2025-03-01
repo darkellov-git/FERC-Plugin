@@ -1,10 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "tDAuT+EvGsI=",
+  "dgSpecHash": "E9Y7Tefi5zo=",
   "success": true,
   "projectFilePath": "C:\\Users\\lopat\\source\\repos\\FERC-Plugin\\src\\FERCPlugin.Core\\FERCPlugin.Core.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\lopat\\.nuget\\packages\\autodesk.revit.sdk\\2023.0.0.2001\\autodesk.revit.sdk.2023.0.0.2001.nupkg.sha512",
+    "C:\\Users\\lopat\\.nuget\\packages\\autodesk.revit.sdk\\2020.2.1.2001\\autodesk.revit.sdk.2020.2.1.2001.nupkg.sha512",
     "C:\\Users\\lopat\\.nuget\\packages\\microsoft.netcore.platforms\\1.1.0\\microsoft.netcore.platforms.1.1.0.nupkg.sha512",
     "C:\\Users\\lopat\\.nuget\\packages\\netstandard.library\\2.0.3\\netstandard.library.2.0.3.nupkg.sha512",
     "C:\\Users\\lopat\\.nuget\\packages\\newtonsoft.json\\13.0.3\\newtonsoft.json.13.0.3.nupkg.sha512"
@@ -14,7 +14,7 @@
       "code": "NU1701",
       "level": "Warning",
       "warningLevel": 1,
-      "message": "Package 'Autodesk.Revit.SDK 2023.0.0.2001' was restored using '.NETFramework,Version=v4.6.1, .NETFramework,Version=v4.6.2, .NETFramework,Version=v4.7, .NETFramework,Version=v4.7.1, .NETFramework,Version=v4.7.2, .NETFramework,Version=v4.8, .NETFramework,Version=v4.8.1' instead of the project target framework '.NETStandard,Version=v2.0'. This package may not be fully compatible with your project.",
+      "message": "Package 'Autodesk.Revit.SDK 2020.2.1.2001' was restored using '.NETFramework,Version=v4.6.1, .NETFramework,Version=v4.6.2, .NETFramework,Version=v4.7, .NETFramework,Version=v4.7.1, .NETFramework,Version=v4.7.2, .NETFramework,Version=v4.8, .NETFramework,Version=v4.8.1' instead of the project target framework '.NETStandard,Version=v2.0'. This package may not be fully compatible with your project.",
       "libraryId": "Autodesk.Revit.SDK",
       "targetGraphs": [
         ".NETStandard,Version=v2.0"

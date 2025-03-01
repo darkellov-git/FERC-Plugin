@@ -2,47 +2,42 @@
   "version": 3,
   "targets": {
     ".NETFramework,Version=v4.8": {
-      "Autodesk.Revit.SDK/2023.0.0.2001": {
+      "Autodesk.Revit.SDK/2020.2.1.2001": {
         "type": "package",
         "compile": {
-          "ref/net48/AdWindows.dll": {},
-          "ref/net48/RevitAPI.dll": {
+          "ref/net471/AdWindows.dll": {},
+          "ref/net471/RevitAPI.dll": {
             "related": ".xml"
           },
-          "ref/net48/RevitAPIBrowserUtils.dll": {},
-          "ref/net48/RevitAPIFoundation.dll": {},
-          "ref/net48/RevitAPIIFC.dll": {
+          "ref/net471/RevitAPIBrowserUtils.dll": {},
+          "ref/net471/RevitAPIFoundation.dll": {},
+          "ref/net471/RevitAPIIFC.dll": {
             "related": ".xml"
           },
-          "ref/net48/RevitAPILink.dll": {},
-          "ref/net48/RevitAPIMacros.dll": {
+          "ref/net471/RevitAPILink.dll": {},
+          "ref/net471/RevitAPIMacros.dll": {
             "related": ".xml"
           },
-          "ref/net48/RevitAPIMacrosInterop.dll": {},
-          "ref/net48/RevitAPIMacrosInteropAPI.dll": {},
-          "ref/net48/RevitAPISteel.dll": {},
-          "ref/net48/RevitAPIUI.dll": {
+          "ref/net471/RevitAPIMacrosInterop.dll": {},
+          "ref/net471/RevitAPIMacrosInteropAPI.dll": {},
+          "ref/net471/RevitAPISteel.dll": {},
+          "ref/net471/RevitAPIUI.dll": {
             "related": ".xml"
           },
-          "ref/net48/RevitAPIUILink.dll": {},
-          "ref/net48/RevitAPIUIMacros.dll": {
+          "ref/net471/RevitAPIUILink.dll": {},
+          "ref/net471/RevitAPIUIMacros.dll": {
             "related": ".xml"
           },
-          "ref/net48/RevitAPIUIMacrosInterop.dll": {},
-          "ref/net48/RevitAPIUIMacrosInteropAPI.dll": {},
-          "ref/net48/RevitAddInUtility.dll": {
+          "ref/net471/RevitAPIUIMacrosInterop.dll": {},
+          "ref/net471/RevitAPIUIMacrosInteropAPI.dll": {},
+          "ref/net471/RevitAddInUtility.dll": {
             "related": ".xml"
           },
-          "ref/net48/RevitDB.dll": {},
-          "ref/net48/RevitDBAPI.dll": {},
-          "ref/net48/RevitDBCore.dll": {},
-          "ref/net48/RevitDBCoreAPI.dll": {},
-          "ref/net48/RevitMFC.dll": {},
-          "ref/net48/RevitMFCAPI.dll": {},
-          "ref/net48/RevitMaterialUI3.dll": {},
-          "ref/net48/RevitNET.dll": {},
-          "ref/net48/RevitUI.dll": {},
-          "ref/net48/RevitUIAPI.dll": {}
+          "ref/net471/RevitDB.dll": {},
+          "ref/net471/RevitDBAPI.dll": {},
+          "ref/net471/RevitNET.dll": {},
+          "ref/net471/RevitUI.dll": {},
+          "ref/net471/RevitUIAPI.dll": {}
         }
       },
       "Newtonsoft.Json/13.0.3": {
@@ -100,49 +95,44 @@
     }
   },
   "libraries": {
-    "Autodesk.Revit.SDK/2023.0.0.2001": {
-      "sha512": "dCAbylhSVwIjhsyeAla8N+9KG+lm/67ZJj9+0gIgRgWSbUeZ199dYzw9+guXDp/HDmawtoLIDpJfNwShKiVauQ==",
+    "Autodesk.Revit.SDK/2020.2.1.2001": {
+      "sha512": "TygwKUi2GGttniImwONTgJe5TwkaIufDqH2kkKbRDk2MrzHf8Ckq3JeHaFoSEiaWBygwvWVL8TeMt9zhZ+kZmg==",
       "type": "package",
-      "path": "autodesk.revit.sdk/2023.0.0.2001",
+      "path": "autodesk.revit.sdk/2020.2.1.2001",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
         "LICENSE.txt",
         "Revit.png",
-        "autodesk.revit.sdk.2023.0.0.2001.nupkg.sha512",
+        "autodesk.revit.sdk.2020.2.1.2001.nupkg.sha512",
         "autodesk.revit.sdk.nuspec",
-        "ref/net48/AdWindows.dll",
-        "ref/net48/RevitAPI.dll",
-        "ref/net48/RevitAPI.xml",
-        "ref/net48/RevitAPIBrowserUtils.dll",
-        "ref/net48/RevitAPIFoundation.dll",
-        "ref/net48/RevitAPIIFC.dll",
-        "ref/net48/RevitAPIIFC.xml",
-        "ref/net48/RevitAPILink.dll",
-        "ref/net48/RevitAPIMacros.dll",
-        "ref/net48/RevitAPIMacros.xml",
-        "ref/net48/RevitAPIMacrosInterop.dll",
-        "ref/net48/RevitAPIMacrosInteropAPI.dll",
-        "ref/net48/RevitAPISteel.dll",
-        "ref/net48/RevitAPIUI.dll",
-        "ref/net48/RevitAPIUI.xml",
-        "ref/net48/RevitAPIUILink.dll",
-        "ref/net48/RevitAPIUIMacros.dll",
-        "ref/net48/RevitAPIUIMacros.xml",
-        "ref/net48/RevitAPIUIMacrosInterop.dll",
-        "ref/net48/RevitAPIUIMacrosInteropAPI.dll",
-        "ref/net48/RevitAddInUtility.dll",
-        "ref/net48/RevitAddInUtility.xml",
-        "ref/net48/RevitDB.dll",
-        "ref/net48/RevitDBAPI.dll",
-        "ref/net48/RevitDBCore.dll",
-        "ref/net48/RevitDBCoreAPI.dll",
-        "ref/net48/RevitMFC.dll",
-        "ref/net48/RevitMFCAPI.dll",
-        "ref/net48/RevitMaterialUI3.dll",
-        "ref/net48/RevitNET.dll",
-        "ref/net48/RevitUI.dll",
-        "ref/net48/RevitUIAPI.dll"
+        "ref/net471/AdWindows.dll",
+        "ref/net471/RevitAPI.dll",
+        "ref/net471/RevitAPI.xml",
+        "ref/net471/RevitAPIBrowserUtils.dll",
+        "ref/net471/RevitAPIFoundation.dll",
+        "ref/net471/RevitAPIIFC.dll",
+        "ref/net471/RevitAPIIFC.xml",
+        "ref/net471/RevitAPILink.dll",
+        "ref/net471/RevitAPIMacros.dll",
+        "ref/net471/RevitAPIMacros.xml",
+        "ref/net471/RevitAPIMacrosInterop.dll",
+        "ref/net471/RevitAPIMacrosInteropAPI.dll",
+        "ref/net471/RevitAPISteel.dll",
+        "ref/net471/RevitAPIUI.dll",
+        "ref/net471/RevitAPIUI.xml",
+        "ref/net471/RevitAPIUILink.dll",
+        "ref/net471/RevitAPIUIMacros.dll",
+        "ref/net471/RevitAPIUIMacros.xml",
+        "ref/net471/RevitAPIUIMacrosInterop.dll",
+        "ref/net471/RevitAPIUIMacrosInteropAPI.dll",
+        "ref/net471/RevitAddInUtility.dll",
+        "ref/net471/RevitAddInUtility.xml",
+        "ref/net471/RevitDB.dll",
+        "ref/net471/RevitDBAPI.dll",
+        "ref/net471/RevitNET.dll",
+        "ref/net471/RevitUI.dll",
+        "ref/net471/RevitUIAPI.dll"
       ]
     },
     "Newtonsoft.Json/13.0.3": {
@@ -203,7 +193,7 @@
   },
   "projectFileDependencyGroups": {
     ".NETFramework,Version=v4.8": [
-      "Autodesk.Revit.SDK >= 2023.*",
+      "Autodesk.Revit.SDK >= 2020.*",
       "FERCPlugin.Core >= 1.0.0",
       "FERCPlugin.UI >= 1.0.0",
       "Newtonsoft.Json >= 13.0.3",
@@ -270,7 +260,7 @@
           "Autodesk.Revit.SDK": {
             "suppressParent": "All",
             "target": "Package",
-            "version": "[2023.*, )"
+            "version": "[2020.*, )"
           },
           "Newtonsoft.Json": {
             "target": "Package",

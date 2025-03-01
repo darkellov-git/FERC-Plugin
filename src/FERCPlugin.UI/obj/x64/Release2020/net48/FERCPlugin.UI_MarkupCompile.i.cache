@@ -4,7 +4,7 @@
 library
 C#
 .cs
-C:\Users\lopat\source\repos\FERCPlugin\src\FERCPlugin.UI\obj\x64\Release2020\net48\
+C:\Users\lopat\source\repos\FERC-Plugin\src\FERCPlugin.UI\obj\x64\Release2020\net48\
 FERCPlugin.UI
 none
 false
@@ -13,7 +13,7 @@ TRACE;TRACE;RELEASE2020;NETFRAMEWORK;NET48;
 1-1644662438
 
 5-2039829193
-41-1770797595
+411930818354
 Views\MainWindow.xaml;
 
 True

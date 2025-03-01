@@ -53,7 +53,7 @@
             "Autodesk.Revit.SDK": {
               "suppressParent": "All",
               "target": "Package",
-              "version": "[2023.*, )"
+              "version": "[2020.*, )"
             },
             "NETStandard.Library": {
               "suppressParent": "All",

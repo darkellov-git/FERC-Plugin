@@ -6,6 +6,6 @@ build_property.ApplicationHighDpiMode =
 build_property.ApplicationUseCompatibleTextRendering = 
 build_property.ApplicationVisualStyles = 
 build_property.RootNamespace = FERCPlugin.UI
-build_property.ProjectDir = C:\Users\lopat\source\repos\FERCPlugin\src\FERCPlugin.UI\
+build_property.ProjectDir = C:\Users\lopat\source\repos\FERC-Plugin\src\FERCPlugin.UI\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 

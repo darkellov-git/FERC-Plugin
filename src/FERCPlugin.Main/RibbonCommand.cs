@@ -1,15 +1,10 @@
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
-using Newtonsoft.Json;
-using Ninject;
-using FERCPlugin.Core.Helpers;
-using FERCPlugin.Core.Models;
-using FERCPlugin.Main.Helpers;
-using FERCPlugin.UI.ViewModels;
-using FERCPlugin.UI.Views;
 using System.IO;
+using FERCPlugin.Core.Models;
 using TaskDialog = Autodesk.Revit.UI.TaskDialog;
+using Application = Autodesk.Revit.ApplicationServices.Application;
 
 namespace FERCPlugin.Main
 {
@@ -22,35 +17,49 @@ namespace FERCPlugin.Main
             ref string message,
             ElementSet elements)
         {
-            RevitTaskRunner revitTaskRunner = new();
-
-            JsonFormatter jsonFormatter = new();
+            UIApplication uiApp = commandData.Application;
+            Application revitApp = uiApp.Application;
 
             string folderPath = @"C:\Users\lopat\source\repos";
-            //string folderPath = @"C:\Users\a.lapatniou\Downloads";
-
             string inputFilePath = Path.Combine(folderPath, "drawing.json");
+            string formattedJsonPath = Path.Combine(folderPath, "drawing_formatted.json");
+
+            string templatePath = @"C:\ProgramData\Autodesk\RVT 2025\Family Templates\English\Metric Mechanical Equipment.rft";
+            string familySavePath = Path.Combine(folderPath, "TEST_Family.rfa");
 
             try
             {
+                JsonFormatter jsonFormatter = new();
                 jsonFormatter.FormatJson(inputFilePath);
 
+                VentUnitProcessor processor = new();
+                processor.ProcessJson(formattedJsonPath);
+
+                Document familyDoc = revitApp.NewFamilyDocument(templatePath);
+                if (familyDoc == null)
+                {
+                    TaskDialog.Show("Error", "Ошибка при создании семейства.");
+                    return Result.Failed;
+                }
+
+                using (Transaction tx = new Transaction(familyDoc, "Set Family Category"))
+                {
+                    tx.Start();
+                    familyDoc.OwnerFamily.FamilyCategory = familyDoc.Settings.Categories.get_Item(BuiltInCategory.OST_MechanicalEquipment);
+                    tx.Commit();
+                }
+
+                SaveAsOptions saveOptions = new SaveAsOptions { OverwriteExistingFile = true };
+                familyDoc.SaveAs(familySavePath, saveOptions);
+                familyDoc.Close(false);
+
+                uiApp.OpenAndActivateDocument(familySavePath);
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("Error", $"Ошибка при форматировании JSON: {ex.Message}");
+                TaskDialog.Show("Error", $"Ошибка: {ex.Message}");
                 return Result.Failed;
             }
-
-            //var mainWindowViewModel = App.ServiceLocator.Get<MainWindowViewModel>();
-
-            //var window = new MainWindow
-            //{
-            //    DataContext = mainWindowViewModel,
-            //    Owner = RevitWindowHandler.GetRevitWindow()
-            //};
-
-            //window.Show();
 
             return Result.Succeeded;
         }
