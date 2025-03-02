@@ -31,35 +31,43 @@ namespace FERCPlugin.Core.Models
                 .Max(unit => unit.HeightTotal) * MM_TO_FEET;
 
             _maxWidth = _intakeUnits
-                .Where(unit => !unit.Category.Contains("recirculator") && !unit.Category.Contains("Utilizer"))
+                .Where(unit => !unit.Category.Contains("recirculator") && !unit.Category.Contains("utilization"))
                 .Max(unit => unit.WidthTotal) * MM_TO_FEET;
 
             _totalLengthIntake = _intakeUnits.Sum(unit => unit.LengthTotal) * MM_TO_FEET;
             _totalLengthExhaust = _exhaustUnits.Sum(unit => unit.LengthTotal) * MM_TO_FEET;
         }
 
-        public void BuildGeometry()
+        public List<Tuple<Element, VentUnitItem>> BuildGeometry()
         {
+            List<Tuple<Element, VentUnitItem>> flexibleDampers = new();
+
             using (Transaction tx = new Transaction(_doc, "Build Vent Unit Geometry"))
             {
                 tx.Start();
 
-                Dictionary<string, double> intakePositions = CreateIntakeGeometry();
-
-                CreateExhaustGeometry(intakePositions);
+                Dictionary<string, double> intakePositions = CreateIntakeGeometry(flexibleDampers);
+                CreateExhaustGeometry(intakePositions, flexibleDampers);
 
                 tx.Commit();
             }
+
+            return flexibleDampers;
         }
 
-        private Dictionary<string, double> CreateIntakeGeometry()
+        private Dictionary<string, double> CreateIntakeGeometry(List<Tuple<Element, VentUnitItem>> flexibleDampers)
         {
             double currentX = -_totalLengthIntake / 2;
-            Dictionary<string, double> intakePositions = new Dictionary<string, double>();
+            Dictionary<string, double> intakePositions = new();
 
             foreach (var unit in _intakeUnits)
             {
-                CreateIntakeExtrusion(unit, currentX);
+                Element createdElement = CreateIntakeExtrusion(unit, currentX);
+
+                if (createdElement != null && unit.Children.Any(child => child.Type.Contains("flexibleDamper")))
+                {
+                    flexibleDampers.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
+                }
 
                 foreach (var child in unit.Children)
                 {
@@ -73,15 +81,15 @@ namespace FERCPlugin.Core.Models
             return intakePositions;
         }
 
-        private void CreateExhaustGeometry(Dictionary<string, double> intakePositions)
+        private void CreateExhaustGeometry(Dictionary<string, double> intakePositions, List<Tuple<Element, VentUnitItem>> flexibleDampers)
         {
             double exhaustZCenter = _maxHeightIntake / 2 + _maxHeightExhaust / 2;
-            List<VentUnitItem> commonElements = new List<VentUnitItem>();
-            List<VentUnitItem> exhaustLeft = new List<VentUnitItem>();
-            List<VentUnitItem> exhaustRight = new List<VentUnitItem>();
+            List<VentUnitItem> commonElements = new();
+            List<VentUnitItem> exhaustLeft = new();
+            List<VentUnitItem> exhaustRight = new();
 
-            double referenceX = 0; 
-            double totalCommonLength = 0; 
+            double referenceX = 0;
+            double totalCommonLength = 0;
             int commonIndex = -1;
 
             for (int i = 0; i < _exhaustUnits.Count; i++)
@@ -109,7 +117,7 @@ namespace FERCPlugin.Core.Models
                 if (!isCommonElement)
                 {
                     if (commonIndex == -1)
-                        exhaustLeft.Add(unit); 
+                        exhaustLeft.Add(unit);
                     else
                         exhaustRight.Add(unit);
                 }
@@ -119,19 +127,26 @@ namespace FERCPlugin.Core.Models
             for (int i = exhaustLeft.Count - 1; i >= 0; i--)
             {
                 currentX -= exhaustLeft[i].LengthTotal * MM_TO_FEET;
-                CreateExhaustExtrusion(exhaustLeft[i], currentX, exhaustZCenter);
+                Element createdElement = CreateExhaustExtrusion(exhaustLeft[i], currentX, exhaustZCenter);
+                if (createdElement != null && exhaustLeft[i].Children.Any(child => child.Type.Contains("flexibleDamper")))
+                {
+                    flexibleDampers.Add(new Tuple<Element, VentUnitItem>(createdElement, exhaustLeft[i]));
+                }
             }
 
             currentX = referenceX + totalCommonLength;
             foreach (var unit in exhaustRight)
             {
-                CreateExhaustExtrusion(unit, currentX, exhaustZCenter);
+                Element createdElement = CreateExhaustExtrusion(unit, currentX, exhaustZCenter);
+                if (createdElement != null && unit.Children.Any(child => child.Type.Contains("flexibleDamper")))
+                {
+                    flexibleDampers.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
+                }
                 currentX += unit.LengthTotal * MM_TO_FEET;
             }
         }
 
-
-        private void CreateExhaustExtrusion(VentUnitItem unit, double startX, double centerZ)
+        private Element CreateExhaustExtrusion(VentUnitItem unit, double startX, double centerZ)
         {
             double length = unit.LengthTotal * MM_TO_FEET;
             double height = unit.HeightTotal * MM_TO_FEET;
@@ -200,10 +215,11 @@ namespace FERCPlugin.Core.Models
             if (heightParam != null) heightParam.Set(height);
             Parameter widthParam = extrusion.LookupParameter("Width");
             if (widthParam != null) widthParam.Set(width);
+
+            return extrusion;
         }
 
-
-        private void CreateIntakeExtrusion(VentUnitItem unit, double startX)
+        private Element CreateIntakeExtrusion(VentUnitItem unit, double startX)
         {
             double length = unit.LengthTotal * MM_TO_FEET;
             double height = unit.HeightTotal * MM_TO_FEET;
@@ -276,12 +292,13 @@ namespace FERCPlugin.Core.Models
 
             Parameter lengthParam = extrusion.LookupParameter("Length");
             if (lengthParam != null) lengthParam.Set(length);
-
             Parameter heightParam = extrusion.LookupParameter("Height");
             if (heightParam != null) heightParam.Set(height);
-
             Parameter widthParam = extrusion.LookupParameter("Width");
             if (widthParam != null) widthParam.Set(width);
+
+            return extrusion;
         }
+
     }
 }

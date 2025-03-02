@@ -57,9 +57,10 @@ namespace FERCPlugin.Main
                 Document reopenedFamilyDoc = uiFamilyDoc.Document;
 
                 VentUnitGeometryBuilder builder = new VentUnitGeometryBuilder(reopenedFamilyDoc, processor.Intake, processor.Exhaust);
-                builder.BuildGeometry();
 
-
+                List<Tuple<Element, VentUnitItem>> flexibleDampers = builder.BuildGeometry();
+                DuctConnectorCreator connectorCreator = new DuctConnectorCreator(reopenedFamilyDoc, flexibleDampers);
+                connectorCreator.CreateConnectors();
             }
             catch (Exception ex)
             {
@@ -68,6 +69,8 @@ namespace FERCPlugin.Main
             }
 
             return Result.Succeeded;
+
         }
+
     }
 }
