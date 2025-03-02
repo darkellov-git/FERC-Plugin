@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace FERCPlugin.Core.Models
+﻿namespace FERCPlugin.Core.Models
 {
     public class VentUnitItem
     {

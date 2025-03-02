@@ -53,7 +53,13 @@ namespace FERCPlugin.Main
                 familyDoc.SaveAs(familySavePath, saveOptions);
                 familyDoc.Close(false);
 
-                uiApp.OpenAndActivateDocument(familySavePath);
+                UIDocument uiFamilyDoc = uiApp.OpenAndActivateDocument(familySavePath);
+                Document reopenedFamilyDoc = uiFamilyDoc.Document;
+
+                VentUnitGeometryBuilder builder = new VentUnitGeometryBuilder(reopenedFamilyDoc, processor.Intake);
+                builder.BuildGeometry();
+
+
             }
             catch (Exception ex)
             {
