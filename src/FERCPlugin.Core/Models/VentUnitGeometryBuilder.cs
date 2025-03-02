@@ -75,12 +75,12 @@ namespace FERCPlugin.Core.Models
             {
                 double inset = height / 5;
 
-                XYZ p1 = new XYZ(minX, 0, minZ); 
+                XYZ p1 = new XYZ(minX, 0, minZ);
                 XYZ p2 = new XYZ(minX + length / 2, 0, minZ + inset);
-                XYZ p3 = new XYZ(maxX, 0, minZ);  
-                XYZ p4 = new XYZ(maxX, 0, maxZ); 
-                XYZ p5 = new XYZ(minX + length / 2, 0, maxZ - inset); 
-                XYZ p6 = new XYZ(minX, 0, maxZ);  
+                XYZ p3 = new XYZ(maxX, 0, minZ);
+                XYZ p4 = new XYZ(maxX, 0, maxZ);
+                XYZ p5 = new XYZ(minX + length / 2, 0, maxZ - inset);
+                XYZ p6 = new XYZ(minX, 0, maxZ);
 
                 curveLoop.Append(Line.CreateBound(p1, p2));
                 curveLoop.Append(Line.CreateBound(p2, p3));
@@ -109,6 +109,13 @@ namespace FERCPlugin.Core.Models
             curveArrArray.Append(curveArray);
 
             Extrusion extrusion = _doc.FamilyCreate.NewExtrusion(true, curveArrArray, sketchPlane, width);
+
+            if (isFlexibleDamper || isAirValve)
+            {
+                double offset = (_maxWidth - width) / 2;
+                extrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(offset);
+                extrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(width + offset);
+            }
 
             Parameter lengthParam = extrusion.LookupParameter("Length");
             if (lengthParam != null) lengthParam.Set(length);
