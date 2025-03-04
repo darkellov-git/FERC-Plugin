@@ -16,7 +16,7 @@ namespace FERCPlugin.Core.Models
 
         private const double MM_TO_FEET = 0.00328084;
 
-        public VentUnitGeometryBuilder(Document doc, List<VentUnitItem> intakeUnits, List<VentUnitItem> exhaustUnits)
+        public VentUnitGeometryBuilder(Document doc, List<VentUnitItem> intakeUnits, List<VentUnitItem> exhaustUnits, bool isIntakeBelow)
         {
             _doc = doc;
             _intakeUnits = intakeUnits;

@@ -1,6 +1,4 @@
 ﻿using Newtonsoft.Json.Linq;
-using System;
-using System.IO;
 
 namespace FERCPlugin.Core.Models
 {
@@ -29,8 +27,15 @@ namespace FERCPlugin.Core.Models
 
             JObject rootObj = JObject.Parse(jsonContent);
 
+            bool isIntakeBelow = rootObj.SelectToken("result.design.isIntakeBelow")?.Value<bool>() ?? false;
+
             JToken drawingToken = rootObj.SelectToken("result.drawing") ?? throw new Exception("В исходном файле не найден объект 'result.drawing'.");
             RemoveUnwantedElements(drawingToken);
+
+            if (drawingToken is JObject drawingObj)
+            {
+                drawingObj["isIntakeBelow"] = isIntakeBelow;
+            }
 
             string formattedJson = drawingToken.ToString(Newtonsoft.Json.Formatting.Indented);
 

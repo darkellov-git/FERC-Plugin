@@ -5,6 +5,7 @@ using System.IO;
 using FERCPlugin.Core.Models;
 using TaskDialog = Autodesk.Revit.UI.TaskDialog;
 using Application = Autodesk.Revit.ApplicationServices.Application;
+using Newtonsoft.Json.Linq;
 
 namespace FERCPlugin.Main
 {
@@ -35,6 +36,14 @@ namespace FERCPlugin.Main
                 VentUnitProcessor processor = new();
                 processor.ProcessJson(formattedJsonPath);
 
+                bool isIntakeBelow = true;
+                if (File.Exists(formattedJsonPath))
+                {
+                    string jsonContent = File.ReadAllText(formattedJsonPath);
+                    JObject rootObj = JObject.Parse(jsonContent);
+                    isIntakeBelow = rootObj.SelectToken("isIntakeBelow")?.Value<bool>() ?? false;
+                }
+
                 Document familyDoc = revitApp.NewFamilyDocument(templatePath);
                 if (familyDoc == null)
                 {
@@ -56,11 +65,12 @@ namespace FERCPlugin.Main
                 UIDocument uiFamilyDoc = uiApp.OpenAndActivateDocument(familySavePath);
                 Document reopenedFamilyDoc = uiFamilyDoc.Document;
 
-                VentUnitGeometryBuilder builder = new VentUnitGeometryBuilder(reopenedFamilyDoc, processor.Intake, processor.Exhaust);
+                VentUnitGeometryBuilder builder = new VentUnitGeometryBuilder(reopenedFamilyDoc, processor.Intake, processor.Exhaust, isIntakeBelow);
 
                 List<Tuple<Element, VentUnitItem>> flexibleDampers = builder.BuildGeometry();
-                DuctConnectorCreator connectorCreator = new DuctConnectorCreator(reopenedFamilyDoc, flexibleDampers);
-                connectorCreator.CreateConnectors();
+
+                //DuctConnectorCreator connectorCreator = new DuctConnectorCreator(reopenedFamilyDoc, flexibleDampers);
+                //connectorCreator.CreateConnectors();
             }
             catch (Exception ex)
             {
@@ -71,6 +81,5 @@ namespace FERCPlugin.Main
             return Result.Succeeded;
 
         }
-
     }
 }
