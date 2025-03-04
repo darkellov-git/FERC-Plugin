@@ -27,7 +27,7 @@ namespace FERCPlugin.Core.Models
 
             JObject rootObj = JObject.Parse(jsonContent);
 
-            bool isIntakeBelow = rootObj.SelectToken("result.design.isIntakeBelow")?.Value<bool>() ?? false;
+            bool isIntakeBelow = rootObj.SelectToken("design.isIntakeBelow")?.Value<bool>() ?? false;
 
             JToken drawingToken = rootObj.SelectToken("result.drawing") ?? throw new Exception("В исходном файле не найден объект 'result.drawing'.");
             RemoveUnwantedElements(drawingToken);

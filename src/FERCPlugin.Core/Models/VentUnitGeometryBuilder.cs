@@ -7,6 +7,7 @@ namespace FERCPlugin.Core.Models
         private readonly Document _doc;
         private readonly List<VentUnitItem> _intakeUnits;
         private readonly List<VentUnitItem> _exhaustUnits;
+        private readonly bool _isIntakeBelow;
 
         private double _maxHeightIntake;
         private double _maxHeightExhaust;
@@ -21,6 +22,7 @@ namespace FERCPlugin.Core.Models
             _doc = doc;
             _intakeUnits = intakeUnits;
             _exhaustUnits = exhaustUnits;
+            _isIntakeBelow = isIntakeBelow;
 
             _maxHeightIntake = _intakeUnits
                 .Where(unit => !unit.Category.Contains("recirculator") && !unit.Category.Contains("utilization"))
@@ -46,7 +48,10 @@ namespace FERCPlugin.Core.Models
             {
                 tx.Start();
 
-                Dictionary<string, double> intakePositions = CreateIntakeGeometry(flexibleDampers);
+                Dictionary<string, double> intakePositions = _isIntakeBelow
+                    ? CreateIntakeGeometry(flexibleDampers, -_maxHeightIntake / 2)
+                    : CreateIntakeGeometry(flexibleDampers, _maxHeightExhaust);
+
                 CreateExhaustGeometry(intakePositions, flexibleDampers);
 
                 tx.Commit();
@@ -55,14 +60,21 @@ namespace FERCPlugin.Core.Models
             return flexibleDampers;
         }
 
-        private Dictionary<string, double> CreateIntakeGeometry(List<Tuple<Element, VentUnitItem>> flexibleDampers)
+        private Dictionary<string, double> CreateIntakeGeometry(List<Tuple<Element, VentUnitItem>> flexibleDampers, double intakeBaseZ)
         {
             double currentX = -_totalLengthIntake / 2;
             Dictionary<string, double> intakePositions = new();
 
             foreach (var unit in _intakeUnits)
             {
-                Element createdElement = CreateIntakeExtrusion(unit, currentX);
+                double elementBaseZ = intakeBaseZ;
+
+                if (!_isIntakeBelow && unit.HeightTotal * MM_TO_FEET > _maxHeightIntake / 2)
+                {
+                    elementBaseZ -= unit.HeightTotal * MM_TO_FEET - _maxHeightIntake / 2;
+                }
+
+                Element createdElement = CreateIntakeExtrusion(unit, currentX, elementBaseZ);
 
                 if (createdElement != null && unit.Children.Any(child => child.Type.Contains("flexibleDamper")))
                 {
@@ -83,7 +95,7 @@ namespace FERCPlugin.Core.Models
 
         private void CreateExhaustGeometry(Dictionary<string, double> intakePositions, List<Tuple<Element, VentUnitItem>> flexibleDampers)
         {
-            double exhaustZCenter = _maxHeightIntake / 2 + _maxHeightExhaust / 2;
+            double exhaustBaseZ = _isIntakeBelow ? _maxHeightIntake / 2 : -_maxHeightExhaust / 2;
             List<VentUnitItem> commonElements = new();
             List<VentUnitItem> exhaustLeft = new();
             List<VentUnitItem> exhaustRight = new();
@@ -127,7 +139,7 @@ namespace FERCPlugin.Core.Models
             for (int i = exhaustLeft.Count - 1; i >= 0; i--)
             {
                 currentX -= exhaustLeft[i].LengthTotal * MM_TO_FEET;
-                Element createdElement = CreateExhaustExtrusion(exhaustLeft[i], currentX, exhaustZCenter);
+                Element createdElement = CreateExhaustExtrusion(exhaustLeft[i], currentX, exhaustBaseZ);
                 if (createdElement != null && exhaustLeft[i].Children.Any(child => child.Type.Contains("flexibleDamper")))
                 {
                     flexibleDampers.Add(new Tuple<Element, VentUnitItem>(createdElement, exhaustLeft[i]));
@@ -137,7 +149,7 @@ namespace FERCPlugin.Core.Models
             currentX = referenceX + totalCommonLength;
             foreach (var unit in exhaustRight)
             {
-                Element createdElement = CreateExhaustExtrusion(unit, currentX, exhaustZCenter);
+                Element createdElement = CreateExhaustExtrusion(unit, currentX, exhaustBaseZ);
                 if (createdElement != null && unit.Children.Any(child => child.Type.Contains("flexibleDamper")))
                 {
                     flexibleDampers.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
@@ -146,159 +158,47 @@ namespace FERCPlugin.Core.Models
             }
         }
 
-        private Element CreateExhaustExtrusion(VentUnitItem unit, double startX, double centerZ)
+        private Element CreateExhaustExtrusion(VentUnitItem unit, double startX, double baseZ)
+        {
+            return CreateExtrusion(unit, startX, baseZ, _maxWidth, true);
+        }
+
+        private Element CreateIntakeExtrusion(VentUnitItem unit, double startX, double baseZ)
+        {
+            return CreateExtrusion(unit, startX, baseZ, _maxWidth, false);
+        }
+
+        private Element CreateExtrusion(VentUnitItem unit, double startX, double baseZ, double maxWidth, bool isExhaust)
         {
             double length = unit.LengthTotal * MM_TO_FEET;
             double height = unit.HeightTotal * MM_TO_FEET;
             double width = unit.WidthTotal * MM_TO_FEET;
 
-            bool isFlexibleDamper = unit.Children.Any(child => child.Type.Contains("flexibleDamper"));
-            bool isAirValve = unit.Children.Any(child => child.Type.Contains("airValve"));
-
             double minX = startX;
             double maxX = startX + length;
 
-            double minZ = centerZ - (height / 2);
+            double minZ = baseZ;
             double maxZ = minZ + height;
 
-            CurveLoop curveLoop = new CurveLoop();
+            CurveArray curveArray = new CurveArray();
+            curveArray.Append(Line.CreateBound(new XYZ(minX, 0, minZ), new XYZ(maxX, 0, minZ)));
+            curveArray.Append(Line.CreateBound(new XYZ(maxX, 0, minZ), new XYZ(maxX, 0, maxZ)));
+            curveArray.Append(Line.CreateBound(new XYZ(maxX, 0, maxZ), new XYZ(minX, 0, maxZ)));
+            curveArray.Append(Line.CreateBound(new XYZ(minX, 0, maxZ), new XYZ(minX, 0, minZ)));
 
-            if (isFlexibleDamper)
-            {
-                double inset = height / 5;
-
-                XYZ p1 = new XYZ(minX, 0, minZ);
-                XYZ p2 = new XYZ(minX + length / 2, 0, minZ + inset);
-                XYZ p3 = new XYZ(maxX, 0, minZ);
-                XYZ p4 = new XYZ(maxX, 0, maxZ);
-                XYZ p5 = new XYZ(minX + length / 2, 0, maxZ - inset);
-                XYZ p6 = new XYZ(minX, 0, maxZ);
-
-                curveLoop.Append(Line.CreateBound(p1, p2));
-                curveLoop.Append(Line.CreateBound(p2, p3));
-                curveLoop.Append(Line.CreateBound(p3, p4));
-                curveLoop.Append(Line.CreateBound(p4, p5));
-                curveLoop.Append(Line.CreateBound(p5, p6));
-                curveLoop.Append(Line.CreateBound(p6, p1));
-            }
-            else
-            {
-                curveLoop.Append(Line.CreateBound(new XYZ(minX, 0, minZ), new XYZ(maxX, 0, minZ)));
-                curveLoop.Append(Line.CreateBound(new XYZ(maxX, 0, minZ), new XYZ(maxX, 0, maxZ)));
-                curveLoop.Append(Line.CreateBound(new XYZ(maxX, 0, maxZ), new XYZ(minX, 0, maxZ)));
-                curveLoop.Append(Line.CreateBound(new XYZ(minX, 0, maxZ), new XYZ(minX, 0, minZ)));
-            }
+            CurveArrArray curveArrArray = new CurveArrArray();
+            curveArrArray.Append(curveArray);
 
             Plane plane = Plane.CreateByNormalAndOrigin(XYZ.BasisY, XYZ.Zero);
             SketchPlane sketchPlane = SketchPlane.Create(_doc, plane);
 
-            CurveArrArray curveArrArray = new CurveArrArray();
-            CurveArray curveArray = new CurveArray();
-            foreach (Curve curve in curveLoop)
-            {
-                curveArray.Append(curve);
-            }
-            curveArrArray.Append(curveArray);
-
             Extrusion extrusion = _doc.FamilyCreate.NewExtrusion(true, curveArrArray, sketchPlane, width);
 
-            if (isFlexibleDamper || isAirValve)
-            {
-                double offset = (_maxWidth - width) / 2;
-                extrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(offset);
-                extrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(width + offset);
-            }
-
-            Parameter lengthParam = extrusion.LookupParameter("Length");
-            if (lengthParam != null) lengthParam.Set(length);
-            Parameter heightParam = extrusion.LookupParameter("Height");
-            if (heightParam != null) heightParam.Set(height);
-            Parameter widthParam = extrusion.LookupParameter("Width");
-            if (widthParam != null) widthParam.Set(width);
+            double offset = (maxWidth - width) / 2;
+            extrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(offset);
+            extrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(width + offset);
 
             return extrusion;
         }
-
-        private Element CreateIntakeExtrusion(VentUnitItem unit, double startX)
-        {
-            double length = unit.LengthTotal * MM_TO_FEET;
-            double height = unit.HeightTotal * MM_TO_FEET;
-            double width = unit.WidthTotal * MM_TO_FEET;
-
-            bool isFlexibleDamper = unit.Children.Any(child => child.Type.Contains("flexibleDamper"));
-            bool isAirValve = unit.Children.Any(child => child.Type.Contains("airValve"));
-
-            double minX = startX;
-            double maxX = startX + length;
-
-            double minZ;
-            if (isFlexibleDamper || isAirValve)
-            {
-                minZ = -_maxHeightIntake / 2 + ((_maxHeightIntake - height) / 2);
-            }
-            else
-            {
-                minZ = -_maxHeightIntake / 2;
-            }
-            double maxZ = minZ + height;
-
-            CurveLoop curveLoop = new CurveLoop();
-
-            if (isFlexibleDamper)
-            {
-                double inset = height / 5;
-
-                XYZ p1 = new XYZ(minX, 0, minZ);
-                XYZ p2 = new XYZ(minX + length / 2, 0, minZ + inset);
-                XYZ p3 = new XYZ(maxX, 0, minZ);
-                XYZ p4 = new XYZ(maxX, 0, maxZ);
-                XYZ p5 = new XYZ(minX + length / 2, 0, maxZ - inset);
-                XYZ p6 = new XYZ(minX, 0, maxZ);
-
-                curveLoop.Append(Line.CreateBound(p1, p2));
-                curveLoop.Append(Line.CreateBound(p2, p3));
-                curveLoop.Append(Line.CreateBound(p3, p4));
-                curveLoop.Append(Line.CreateBound(p4, p5));
-                curveLoop.Append(Line.CreateBound(p5, p6));
-                curveLoop.Append(Line.CreateBound(p6, p1));
-            }
-            else
-            {
-                curveLoop.Append(Line.CreateBound(new XYZ(minX, 0, minZ), new XYZ(maxX, 0, minZ)));
-                curveLoop.Append(Line.CreateBound(new XYZ(maxX, 0, minZ), new XYZ(maxX, 0, maxZ)));
-                curveLoop.Append(Line.CreateBound(new XYZ(maxX, 0, maxZ), new XYZ(minX, 0, maxZ)));
-                curveLoop.Append(Line.CreateBound(new XYZ(minX, 0, maxZ), new XYZ(minX, 0, minZ)));
-            }
-
-            Plane plane = Plane.CreateByNormalAndOrigin(XYZ.BasisY, XYZ.Zero);
-            SketchPlane sketchPlane = SketchPlane.Create(_doc, plane);
-
-            CurveArrArray curveArrArray = new CurveArrArray();
-            CurveArray curveArray = new CurveArray();
-            foreach (Curve curve in curveLoop)
-            {
-                curveArray.Append(curve);
-            }
-            curveArrArray.Append(curveArray);
-
-            Extrusion extrusion = _doc.FamilyCreate.NewExtrusion(true, curveArrArray, sketchPlane, width);
-
-            if (isFlexibleDamper || isAirValve)
-            {
-                double offset = (_maxWidth - width) / 2;
-                extrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(offset);
-                extrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(width + offset);
-            }
-
-            Parameter lengthParam = extrusion.LookupParameter("Length");
-            if (lengthParam != null) lengthParam.Set(length);
-            Parameter heightParam = extrusion.LookupParameter("Height");
-            if (heightParam != null) heightParam.Set(height);
-            Parameter widthParam = extrusion.LookupParameter("Width");
-            if (widthParam != null) widthParam.Set(width);
-
-            return extrusion;
-        }
-
     }
 }
