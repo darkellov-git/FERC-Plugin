@@ -219,11 +219,23 @@ namespace FERCPlugin.Core.Models
             extrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(offset);
             extrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(width + offset);
 
+            double blockStartX = startX;
+            if (unit.Category == "block")
+            {
+                foreach (var child in unit.Children)
+                {
+                    if (child.Type.Contains("waterHeater") || child.Type.Contains("waterCooler"))
+                        break; 
+
+                    blockStartX += child.LengthTotal * MM_TO_FEET; 
+                }
+            }
+
             foreach (var child in unit.Children.Where(c => c.Type.Contains("waterHeater") || c.Type.Contains("waterCooler")))
             {
                 foreach (var pipe in child.Pipes)
                 {
-                    CreatePipeExtrusion(startX, baseZ, pipe);
+                    CreatePipeExtrusion(blockStartX, baseZ, pipe); 
                 }
             }
 
