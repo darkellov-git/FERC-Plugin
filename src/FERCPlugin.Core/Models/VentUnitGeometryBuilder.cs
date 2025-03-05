@@ -202,11 +202,31 @@ namespace FERCPlugin.Core.Models
             double maxZ = minZ + height;
 
             CurveArray curveArray = new CurveArray();
-            curveArray.Append(Line.CreateBound(new XYZ(minX, 0, minZ), new XYZ(maxX, 0, minZ)));
-            curveArray.Append(Line.CreateBound(new XYZ(maxX, 0, minZ), new XYZ(maxX, 0, maxZ)));
-            curveArray.Append(Line.CreateBound(new XYZ(maxX, 0, maxZ), new XYZ(minX, 0, maxZ)));
-            curveArray.Append(Line.CreateBound(new XYZ(minX, 0, maxZ), new XYZ(minX, 0, minZ)));
+            if (isFlexibleDamper)
+            {
+                double inset = height / 6;
 
+                XYZ p1 = new XYZ(minX, 0, minZ);
+                XYZ p2 = new XYZ(minX + length / 2, 0, minZ + inset);
+                XYZ p3 = new XYZ(maxX, 0, minZ);
+                XYZ p4 = new XYZ(maxX, 0, maxZ);
+                XYZ p5 = new XYZ(minX + length / 2, 0, maxZ - inset);
+                XYZ p6 = new XYZ(minX, 0, maxZ);
+
+                curveArray.Append(Line.CreateBound(p1, p2));
+                curveArray.Append(Line.CreateBound(p2, p3));
+                curveArray.Append(Line.CreateBound(p3, p4));
+                curveArray.Append(Line.CreateBound(p4, p5));
+                curveArray.Append(Line.CreateBound(p5, p6));
+                curveArray.Append(Line.CreateBound(p6, p1));
+            }
+            else
+            {
+                curveArray.Append(Line.CreateBound(new XYZ(minX, 0, minZ), new XYZ(maxX, 0, minZ)));
+                curveArray.Append(Line.CreateBound(new XYZ(maxX, 0, minZ), new XYZ(maxX, 0, maxZ)));
+                curveArray.Append(Line.CreateBound(new XYZ(maxX, 0, maxZ), new XYZ(minX, 0, maxZ)));
+                curveArray.Append(Line.CreateBound(new XYZ(minX, 0, maxZ), new XYZ(minX, 0, minZ)));
+            }
             CurveArrArray curveArrArray = new CurveArrArray();
             curveArrArray.Append(curveArray);
 
@@ -219,7 +239,6 @@ namespace FERCPlugin.Core.Models
             extrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(offset);
             extrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(width + offset);
 
-            double blockStartX = startX;
 
             if (unit.Category == "block")
             {
@@ -231,7 +250,7 @@ namespace FERCPlugin.Core.Models
                     {
                         foreach (var pipe in child.Pipes)
                         {
-                            CreatePipeExtrusion(blockStartX + accumulatedLength, baseZ, pipe);
+                            CreatePipeExtrusion(startX + accumulatedLength, baseZ, pipe);
                         }
                     }
 
@@ -264,7 +283,7 @@ namespace FERCPlugin.Core.Models
             Extrusion pipeExtrusion = _doc.FamilyCreate.NewExtrusion(true, pipeCurves, pipeSketch, 2);
 
             pipeExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(0);
-            pipeExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(-2);
+            pipeExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(-1);
         }
     }
 }

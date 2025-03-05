@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FERCPlugin.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release2020")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0.0+4f1d6ce05ed2b900e54c824b26ba30e5a348dd93")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0.0+4a522a038a040cce37d7f54d4fc598283e2e6f0f")]
 [assembly: System.Reflection.AssemblyProductAttribute("FERCPlugin.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FERCPlugin.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
