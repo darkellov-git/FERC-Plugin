@@ -24,21 +24,23 @@ namespace FERCPlugin.Core.Models
             _exhaustUnits = exhaustUnits;
             _isIntakeBelow = isIntakeBelow;
 
-            _maxHeightIntake = _intakeUnits
-                .Where(unit => !unit.Category.Contains("recirculator") && !unit.Category.Contains("utilization"))
-                .Max(unit => unit.HeightTotal) * MM_TO_FEET;
-
-            _maxHeightExhaust = _exhaustUnits
-                .Where(unit => !unit.Category.Contains("recirculator") && !unit.Category.Contains("utilization"))
-                .Max(unit => unit.HeightTotal) * MM_TO_FEET;
-
-            _maxWidth = _intakeUnits
-                .Where(unit => !unit.Category.Contains("recirculator") && !unit.Category.Contains("utilization"))
-                .Max(unit => unit.WidthTotal) * MM_TO_FEET;
-
-            _totalLengthIntake = _intakeUnits.Sum(unit => unit.LengthTotal) * MM_TO_FEET;
-            _totalLengthExhaust = _exhaustUnits.Sum(unit => unit.LengthTotal) * MM_TO_FEET;
+            _maxHeightIntake = GetMaxHeight(_intakeUnits);
+            _maxHeightExhaust = GetMaxHeight(_exhaustUnits);
+            _maxWidth = GetMaxWidth(_intakeUnits);
+            _totalLengthIntake = GetTotalLength(_intakeUnits);
+            _totalLengthExhaust = GetTotalLength(_exhaustUnits);
         }
+
+        private static double GetMaxHeight(List<VentUnitItem> units) =>
+    units.Where(unit => !unit.Category.Contains("recirculator") && !unit.Category.Contains("utilization"))
+         .Max(unit => unit.HeightTotal) * MM_TO_FEET;
+
+        private static double GetMaxWidth(List<VentUnitItem> units) =>
+            units.Where(unit => !unit.Category.Contains("recirculator") && !unit.Category.Contains("utilization"))
+                 .Max(unit => unit.WidthTotal) * MM_TO_FEET;
+
+        private static double GetTotalLength(List<VentUnitItem> units) =>
+            units.Sum(unit => unit.LengthTotal) * MM_TO_FEET;
 
         public List<Tuple<Element, VentUnitItem>> BuildGeometry()
         {
@@ -174,10 +176,29 @@ namespace FERCPlugin.Core.Models
             double height = unit.HeightTotal * MM_TO_FEET;
             double width = unit.WidthTotal * MM_TO_FEET;
 
+            bool isFlexibleDamper = unit.Children.Any(child => child.Type.Contains("flexibleDamper"));
+            bool isAirValve = unit.Children.Any(child => child.Type.Contains("airValve"));
+
             double minX = startX;
             double maxX = startX + length;
-
             double minZ = baseZ;
+
+            bool isEndElement = isFlexibleDamper || isAirValve;
+
+            if (isEndElement)
+            {
+                double heightOffset = (_isIntakeBelow ? _maxHeightIntake : _maxHeightExhaust) - height;
+
+                if (_isIntakeBelow)
+                {
+                    minZ = isExhaust ? baseZ + heightOffset / 2 : -_maxHeightIntake / 2 + heightOffset / 2;
+                }
+                else
+                {
+                    minZ = isExhaust ? baseZ + heightOffset / 2 : baseZ - heightOffset / 2;
+                }
+            }
+
             double maxZ = minZ + height;
 
             CurveArray curveArray = new CurveArray();
