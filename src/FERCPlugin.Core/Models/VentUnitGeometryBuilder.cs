@@ -219,7 +219,40 @@ namespace FERCPlugin.Core.Models
             extrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(offset);
             extrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(width + offset);
 
+            foreach (var child in unit.Children.Where(c => c.Type.Contains("waterHeater") || c.Type.Contains("waterCooler")))
+            {
+                foreach (var pipe in child.Pipes)
+                {
+                    CreatePipeExtrusion(startX, baseZ, pipe);
+                }
+            }
+
             return extrusion;
+        }
+
+        private void CreatePipeExtrusion(double startX, double baseZ, VentUnitPipe pipe)
+        {
+            double pipeX = startX + (pipe.X * MM_TO_FEET);
+            double pipeZ = baseZ + (pipe.Y * MM_TO_FEET);
+            double radius = (pipe.D / 2) * MM_TO_FEET;
+
+            if (radius <= 0) return;
+
+            XYZ center = new XYZ(pipeX, 0, pipeZ);
+
+            CurveArray pipeCurve = new CurveArray();
+            pipeCurve.Append(Arc.Create(center, radius, 0, 2 * Math.PI, XYZ.BasisX, XYZ.BasisZ));
+
+            CurveArrArray pipeCurves = new CurveArrArray();
+            pipeCurves.Append(pipeCurve);
+
+            Plane pipePlane = Plane.CreateByNormalAndOrigin(XYZ.BasisY, XYZ.Zero);
+            SketchPlane pipeSketch = SketchPlane.Create(_doc, pipePlane);
+
+            Extrusion pipeExtrusion = _doc.FamilyCreate.NewExtrusion(true, pipeCurves, pipeSketch, 2);
+
+            pipeExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(0);
+            pipeExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(-2);
         }
     }
 }

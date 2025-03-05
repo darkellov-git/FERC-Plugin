@@ -91,7 +91,6 @@ namespace FERCPlugin.Main
             }
 
             return Result.Succeeded;
-
         }
     }
 }
