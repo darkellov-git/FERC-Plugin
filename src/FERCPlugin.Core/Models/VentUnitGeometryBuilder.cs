@@ -42,27 +42,28 @@ namespace FERCPlugin.Core.Models
         private static double GetTotalLength(List<VentUnitItem> units) =>
             units.Sum(unit => unit.LengthTotal) * MM_TO_FEET;
 
-        public List<Tuple<Element, VentUnitItem>> BuildGeometry()
+        public (List<Tuple<Element, VentUnitItem>>, List <Tuple<Element, VentUnitItem>>) BuildGeometry()
         {
-            List<Tuple<Element, VentUnitItem>> flexibleDampers = new();
+            List<Tuple<Element, VentUnitItem>> intakeElements = new();
+            List<Tuple<Element, VentUnitItem>> exhaustElements = new();
 
             using (Transaction tx = new Transaction(_doc, "Build Vent Unit Geometry"))
             {
                 tx.Start();
 
                 Dictionary<string, double> intakePositions = _isIntakeBelow
-                    ? CreateIntakeGeometry(flexibleDampers, -_maxHeightIntake / 2)
-                    : CreateIntakeGeometry(flexibleDampers, _maxHeightExhaust);
+                    ? CreateIntakeGeometry(intakeElements, -_maxHeightIntake / 2)
+                    : CreateIntakeGeometry(intakeElements, _maxHeightExhaust);
 
-                CreateExhaustGeometry(intakePositions, flexibleDampers);
+                CreateExhaustGeometry(intakePositions, exhaustElements);
 
                 tx.Commit();
             }
 
-            return flexibleDampers;
+            return (intakeElements, exhaustElements);
         }
 
-        private Dictionary<string, double> CreateIntakeGeometry(List<Tuple<Element, VentUnitItem>> flexibleDampers, double intakeBaseZ)
+        private Dictionary<string, double> CreateIntakeGeometry(List<Tuple<Element, VentUnitItem>> intakeElements, double intakeBaseZ)
         {
             double currentX = -_totalLengthIntake / 2;
             Dictionary<string, double> intakePositions = new();
@@ -78,9 +79,9 @@ namespace FERCPlugin.Core.Models
 
                 Element createdElement = CreateIntakeExtrusion(unit, currentX, elementBaseZ);
 
-                if (createdElement != null && unit.Children.Any(child => child.Type.Contains("flexibleDamper")))
+                if (createdElement != null)
                 {
-                    flexibleDampers.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
+                    intakeElements.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
                 }
 
                 foreach (var child in unit.Children)
@@ -95,7 +96,7 @@ namespace FERCPlugin.Core.Models
             return intakePositions;
         }
 
-        private void CreateExhaustGeometry(Dictionary<string, double> intakePositions, List<Tuple<Element, VentUnitItem>> flexibleDampers)
+        private void CreateExhaustGeometry(Dictionary<string, double> intakePositions, List<Tuple<Element, VentUnitItem>> exhaustElements)
         {
             double exhaustBaseZ = _isIntakeBelow ? _maxHeightIntake / 2 : -_maxHeightExhaust / 2;
             List<VentUnitItem> commonElements = new();
@@ -142,9 +143,9 @@ namespace FERCPlugin.Core.Models
             {
                 currentX -= exhaustLeft[i].LengthTotal * MM_TO_FEET;
                 Element createdElement = CreateExhaustExtrusion(exhaustLeft[i], currentX, exhaustBaseZ);
-                if (createdElement != null && exhaustLeft[i].Children.Any(child => child.Type.Contains("flexibleDamper")))
+                if (createdElement != null)
                 {
-                    flexibleDampers.Add(new Tuple<Element, VentUnitItem>(createdElement, exhaustLeft[i]));
+                    exhaustElements.Add(new Tuple<Element, VentUnitItem>(createdElement, exhaustLeft[i]));
                 }
             }
 
@@ -152,9 +153,9 @@ namespace FERCPlugin.Core.Models
             foreach (var unit in exhaustRight)
             {
                 Element createdElement = CreateExhaustExtrusion(unit, currentX, exhaustBaseZ);
-                if (createdElement != null && unit.Children.Any(child => child.Type.Contains("flexibleDamper")))
+                if (createdElement != null)
                 {
-                    flexibleDampers.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
+                    exhaustElements.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
                 }
                 currentX += unit.LengthTotal * MM_TO_FEET;
             }

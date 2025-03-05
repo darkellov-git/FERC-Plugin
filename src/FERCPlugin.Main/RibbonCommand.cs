@@ -79,7 +79,9 @@ namespace FERCPlugin.Main
 
                 VentUnitGeometryBuilder builder = new VentUnitGeometryBuilder(reopenedFamilyDoc, processor.Intake, processor.Exhaust, isIntakeBelow);
 
-                List<Tuple<Element, VentUnitItem>> flexibleDampers = builder.BuildGeometry();
+                var (intakeElements, exhaustElements) = builder.BuildGeometry();
+
+                AnnotationBuilder annotationBuilder = new AnnotationBuilder(familyDoc, intakeElements, exhaustElements, hasUtilizationCross, isIntakeBelow);
 
                 //DuctConnectorCreator connectorCreator = new DuctConnectorCreator(reopenedFamilyDoc, flexibleDampers);
                 //connectorCreator.CreateConnectors();
