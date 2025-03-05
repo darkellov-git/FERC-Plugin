@@ -33,9 +33,6 @@ namespace FERCPlugin.Main
                 JsonFormatter jsonFormatter = new();
                 jsonFormatter.FormatJson(inputFilePath);
 
-                VentUnitProcessor processor = new();
-                processor.ProcessJson(formattedJsonPath);
-
                 bool isIntakeBelow = true;
                 if (File.Exists(formattedJsonPath))
                 {
@@ -43,6 +40,21 @@ namespace FERCPlugin.Main
                     JObject rootObj = JObject.Parse(jsonContent);
                     isIntakeBelow = rootObj.SelectToken("isIntakeBelow")?.Value<bool>() ?? false;
                 }
+
+                bool hasUtilizationCross = false;
+                if (File.Exists(formattedJsonPath))
+                {
+                    string jsonContent = File.ReadAllText(formattedJsonPath);
+                    JObject rootObj = JObject.Parse(jsonContent);
+
+                    hasUtilizationCross = rootObj
+                        .Descendants()
+                        .OfType<JObject>()
+                        .Any(obj => obj["category"]?.ToString() == "utilization_cross");
+                }
+
+                VentUnitProcessor processor = new();
+                processor.ProcessJson(formattedJsonPath, hasUtilizationCross);
 
                 Document familyDoc = revitApp.NewFamilyDocument(templatePath);
                 if (familyDoc == null)
