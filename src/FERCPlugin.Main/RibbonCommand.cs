@@ -81,7 +81,8 @@ namespace FERCPlugin.Main
 
                 var (intakeElements, exhaustElements) = builder.BuildGeometry();
 
-                AnnotationBuilder annotationBuilder = new AnnotationBuilder(familyDoc, intakeElements, exhaustElements, hasUtilizationCross, isIntakeBelow);
+                AnnotationBuilder annotationBuilder = new AnnotationBuilder(reopenedFamilyDoc, intakeElements, exhaustElements, hasUtilizationCross, isIntakeBelow);
+                annotationBuilder.AddAnnotations();
 
                 //DuctConnectorCreator connectorCreator = new DuctConnectorCreator(reopenedFamilyDoc, flexibleDampers);
                 //connectorCreator.CreateConnectors();
