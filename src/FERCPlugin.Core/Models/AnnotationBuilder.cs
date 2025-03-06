@@ -11,9 +11,8 @@ namespace FERCPlugin.Core.Models
         private readonly bool _hasUtilizationCross;
         private readonly bool _isIntakeBelow;
         private readonly View _frontView;
+        private static double _halfHeightIntake;
 
-        private const double DIM_OFFSET_LARGE = 6.0;
-        private const double DIM_OFFSET_SMALL = 5.0;
         private const double MM_TO_FEET = 0.00328084;
 
         public AnnotationBuilder(
@@ -21,13 +20,16 @@ namespace FERCPlugin.Core.Models
             List<Tuple<Element, VentUnitItem>> intakeElements,
             List<Tuple<Element, VentUnitItem>> exhaustElements,
             bool hasUtilizationCross,
-            bool isIntakeBelow)
+            bool isIntakeBelow,
+            double maxHeightIntake,
+            double maxHeightExhaust)
         {
             _doc = doc;
             _intakeElements = intakeElements;
             _exhaustElements = exhaustElements;
             _hasUtilizationCross = hasUtilizationCross;
             _isIntakeBelow = isIntakeBelow;
+            _halfHeightIntake = maxHeightIntake / 2;
             _frontView = GetFrontView();
         }
 
@@ -39,8 +41,8 @@ namespace FERCPlugin.Core.Models
                 return;
             }
 
-            CreateHorizontalDimensions(_intakeElements, _isIntakeBelow ? -DIM_OFFSET_SMALL : DIM_OFFSET_LARGE, false);
-            CreateHorizontalDimensions(_exhaustElements, _isIntakeBelow ? DIM_OFFSET_LARGE : -DIM_OFFSET_SMALL, true);
+            CreateHorizontalDimensions(_intakeElements, _isIntakeBelow ? -_halfHeightIntake - 1 : _halfHeightIntake + 1, false);
+            CreateHorizontalDimensions(_exhaustElements, _isIntakeBelow ? _halfHeightIntake + 1 : -_halfHeightIntake - 1, true);
             //CreateVerticalDimensions(_intakeElements, DIM_OFFSET_LARGE);
             //CreateVerticalDimensions(_exhaustElements, DIM_OFFSET_LARGE);
         }
@@ -63,8 +65,7 @@ namespace FERCPlugin.Core.Models
 
                 if (elements.Count < 2) return;
 
-                List<Reference> leftFaces = new();
-                List<Reference> rightFaces = new();
+                List<Tuple<Reference, Reference, double>> facePairs = new();
 
                 foreach (var (element, _) in elements)
                 {
@@ -74,9 +75,16 @@ namespace FERCPlugin.Core.Models
                     Reference leftFace = verticalFaces.OrderBy(f => GetFaceCenter(f).X).First();
                     Reference rightFace = verticalFaces.OrderBy(f => GetFaceCenter(f).X).Last();
 
-                    leftFaces.Add(leftFace);
-                    rightFaces.Add(rightFace);
+                    double leftX = GetFaceCenter(leftFace).X;
+                    double rightX = GetFaceCenter(rightFace).X;
+
+                    facePairs.Add(Tuple.Create(leftFace, rightFace, leftX));
                 }
+
+                facePairs = facePairs.OrderBy(pair => pair.Item3).ToList();
+
+                List<Reference> leftFaces = facePairs.Select(pair => pair.Item1).ToList();
+                List<Reference> rightFaces = facePairs.Select(pair => pair.Item2).ToList();
 
                 if (!isExhaust)
                 {
@@ -109,15 +117,47 @@ namespace FERCPlugin.Core.Models
 
                         _doc.FamilyCreate.NewDimension(_frontView, dimLine, singleRefArray);
                     }
+
+                    for (int i = 0; i < rightFaces.Count - 1; i++)
+                    {
+                        XYZ rightFacePos = GetFaceCenter(rightFaces[i]);
+                        XYZ leftFaceNextPos = GetFaceCenter(leftFaces[i + 1]);
+
+                        double gap = leftFaceNextPos.X - rightFacePos.X;
+
+                        if (gap > 0.1)
+                        {
+                            ReferenceArray gapRefArray = new ReferenceArray();
+                            gapRefArray.Append(rightFaces[i]);
+                            gapRefArray.Append(leftFaces[i + 1]);
+
+                            XYZ dimLinePosition = rightFacePos + new XYZ(0, 0, offset);
+                            Line dimLine = Line.CreateBound(dimLinePosition, dimLinePosition + XYZ.BasisX * 10);
+
+                            _doc.FamilyCreate.NewDimension(_frontView, dimLine, gapRefArray);
+                        }
+                    }
                 }
+
+                ReferenceArray refArrayGeneral = new ReferenceArray();
+                refArrayGeneral.Append(leftFaces.First());
+                refArrayGeneral.Append(rightFaces.Last());
+
+                double offsetAdjustment = (isExhaust == _isIntakeBelow) ? offset + 1 : offset - 1;
+                XYZ dimLinePositionGeneral = GetFaceCenter(leftFaces.First()) + new XYZ(0, 0, offsetAdjustment);
+
+                Line dimLineGeneral = Line.CreateBound(dimLinePositionGeneral, dimLinePositionGeneral + XYZ.BasisX * 10);
+
+                _doc.FamilyCreate.NewDimension(_frontView, dimLineGeneral, refArrayGeneral);
+
                 tx.Commit();
 
                 tx.Start();
 
                 RemoveZeroDimensionsFromFrontView();
+
                 tx.Commit();
             }
-
         }
 
         private void RemoveZeroDimensionsFromFrontView()
@@ -130,10 +170,10 @@ namespace FERCPlugin.Core.Models
 
             foreach (var dimension in dimensions)
             {
-                if (dimension.Value != null)  
+                if (dimension.Value != null)
                 {
                     double dimValue = dimension.Value.Value;
-                    if (dimValue == 0) 
+                    if (dimValue == 0)
                     {
                         toDelete.Add(dimension.Id);
                     }
@@ -197,10 +237,28 @@ namespace FERCPlugin.Core.Models
             if (face == null)
                 return XYZ.Zero;
 
-            BoundingBoxUV bbox = face.GetBoundingBox();
-            UV centerUV = (bbox.Min + bbox.Max) / 2;
-            return face.Evaluate(centerUV);
+            // Получаем список всех граничных точек (вершин) грани
+            List<XYZ> facePoints = new List<XYZ>();
+
+            foreach (EdgeArray edgeArray in face.EdgeLoops)
+            {
+                foreach (Edge edge in edgeArray)
+                {
+                    IList<XYZ> edgePoints = edge.Tessellate();
+                    facePoints.AddRange(edgePoints);
+                }
+            }
+
+            if (facePoints.Count == 0) return XYZ.Zero;
+
+            // Вычисляем среднее арифметическое всех точек (центр грани)
+            double avgX = facePoints.Average(p => p.X);
+            double avgY = facePoints.Average(p => p.Y);
+            double avgZ = facePoints.Average(p => p.Z);
+
+            return new XYZ(avgX, avgY, avgZ);
         }
+
 
 
         private void CreateDimension(Reference ref1, Reference ref2, XYZ dimLinePosition)

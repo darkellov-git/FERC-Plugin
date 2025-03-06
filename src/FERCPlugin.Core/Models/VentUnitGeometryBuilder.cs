@@ -42,7 +42,7 @@ namespace FERCPlugin.Core.Models
         private static double GetTotalLength(List<VentUnitItem> units) =>
             units.Sum(unit => unit.LengthTotal) * MM_TO_FEET;
 
-        public (List<Tuple<Element, VentUnitItem>>, List <Tuple<Element, VentUnitItem>>) BuildGeometry()
+        public (List<Tuple<Element, VentUnitItem>>, List <Tuple<Element, VentUnitItem>>, double, double) BuildGeometry()
         {
             List<Tuple<Element, VentUnitItem>> intakeElements = new();
             List<Tuple<Element, VentUnitItem>> exhaustElements = new();
@@ -60,7 +60,7 @@ namespace FERCPlugin.Core.Models
                 tx.Commit();
             }
 
-            return (intakeElements, exhaustElements);
+            return (intakeElements, exhaustElements, _maxHeightIntake, _maxHeightExhaust);
         }
 
         private Dictionary<string, double> CreateIntakeGeometry(List<Tuple<Element, VentUnitItem>> intakeElements, double intakeBaseZ)
