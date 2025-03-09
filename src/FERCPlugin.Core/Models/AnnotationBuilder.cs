@@ -43,8 +43,8 @@ namespace FERCPlugin.Core.Models
 
             CreateHorizontalDimensions(_intakeElements, _isIntakeBelow ? -_halfHeightIntake - 1 : _halfHeightIntake + 1, false);
             CreateHorizontalDimensions(_exhaustElements, _isIntakeBelow ? _halfHeightIntake + 1 : -_halfHeightIntake - 1, true);
-            //CreateVerticalDimensions(_intakeElements, DIM_OFFSET_LARGE);
-            //CreateVerticalDimensions(_exhaustElements, DIM_OFFSET_LARGE);
+            CreateVerticalDimensions(_intakeElements, 1, true);
+            CreateVerticalDimensions(_exhaustElements, 1, false);
         }
 
         private View GetFrontView()
@@ -58,7 +58,7 @@ namespace FERCPlugin.Core.Models
 
         private void CreateHorizontalDimensions(List<Tuple<Element, VentUnitItem>> elements, double offset, bool isExhaust)
         {
-            using (Transaction tx = new(_doc, "Adding annotations"))
+            using (Transaction tx = new(_doc, "Creating horizontal dimensions"))
             {
                 tx.Start();
 
@@ -186,22 +186,129 @@ namespace FERCPlugin.Core.Models
         }
 
 
-        private void CreateVerticalDimensions(List<Tuple<Element, VentUnitItem>> elements, double offset)
+        private void CreateVerticalDimensions(List<Tuple<Element, VentUnitItem>> elements, double offset, bool isIntake)
         {
-            if (!elements.Any()) return;
-
-            foreach (var (element, _) in elements)
+            using (Transaction tx = new(_doc, "Creating vertical dimensions"))
             {
-                List<Reference> horizontalFaces = GetParallelFaces(element, XYZ.BasisZ);
-                if (horizontalFaces.Count < 2) continue;
+                tx.Start();
 
-                Reference topFace = horizontalFaces.OrderBy(f => GetFaceCenter(f).Z).Last();
-                Reference bottomFace = horizontalFaces.OrderBy(f => GetFaceCenter(f).Z).First();
+                if (!elements.Any()) return;
 
-                XYZ dimLinePosition = GetFaceCenter(bottomFace) + new XYZ(offset, 0, 0);
-                CreateDimension(bottomFace, topFace, dimLinePosition);
+                if (isIntake)
+                {
+                    var highestElement = elements.OrderByDescending(e => e.Item2.HeightTotal).FirstOrDefault();
+                    if (highestElement == null)
+                    {
+                        TaskDialog.Show("Ошибка", "Не найден самый высокий элемент.");
+                        return;
+                    }
+                    elements.Remove(highestElement);
+                }
+
+                var elementWithMaxZDiff = elements
+                    .Select(e =>
+                    {
+                        var topFace = GetExtremeFace(e.Item1, true, XYZ.BasisZ);
+                        var bottomFace = GetExtremeFace(e.Item1, false, XYZ.BasisZ);
+
+                        if (topFace == null || bottomFace == null)
+                            return null; 
+
+                        var topCenter = GetFaceCenter(topFace);
+                        var bottomCenter = GetFaceCenter(bottomFace);
+
+                        if (topCenter == XYZ.Zero || bottomCenter == XYZ.Zero)
+                            return null;
+
+                        return new
+                        {
+                            Element = e.Item1,
+                            TopFace = topFace,
+                            BottomFace = bottomFace,
+                            ZDifference = topCenter.Z - bottomCenter.Z
+                        };
+                    })
+                    .Where(e => e != null)
+                    .OrderByDescending(e => e.ZDifference)
+                    .FirstOrDefault();
+
+                if (elementWithMaxZDiff != null && elementWithMaxZDiff.TopFace != null && elementWithMaxZDiff.BottomFace != null)
+                {
+                    XYZ dimLinePosition = GetFaceCenter(elementWithMaxZDiff.BottomFace) - new XYZ(offset + 1, 0, 0);
+                    TaskDialog.Show("Debug", $"Создаём размер на Z = {dimLinePosition.Z}");
+                    CreateDimension(elementWithMaxZDiff.BottomFace, elementWithMaxZDiff.TopFace, dimLinePosition);
+                }
+                else
+                {
+                    TaskDialog.Show("Ошибка", "Не найден элемент с максимальной разницей по Z.");
+                }
+
+                var flexibleDamperElement = elements.FirstOrDefault(e => e.Item2.Children.Any(child => child.Type.Contains("flexibleDamper")));
+
+                if (flexibleDamperElement != null)
+                {
+                    List<Reference> damperFaces = GetParallelFaces(flexibleDamperElement.Item1, XYZ.BasisZ);
+                    if (damperFaces.Count >= 2)
+                    {
+                        Reference ref1 = damperFaces.OrderBy(f => GetFaceCenter(f).Z).FirstOrDefault();
+                        Reference ref2 = damperFaces.OrderBy(f => GetFaceCenter(f).Z).LastOrDefault();
+
+                        if (ref1 != null && ref2 != null)
+                        {
+                            XYZ dimLinePosition = GetFaceCenter(ref1) - new XYZ(offset, 0, 0);
+                            CreateDimension(ref1, ref2, dimLinePosition);
+                        }
+                        else
+                        {
+                            TaskDialog.Show("Ошибка", "Не найдены грани flexibleDamper.");
+                        }
+                    }
+                }
+                else
+                {
+                    var elementWithMinZDiff = elements
+                        .Select(e => new
+                        {
+                            Element = e.Item1,
+                            TopFace = GetExtremeFace(e.Item1, true, XYZ.BasisZ),
+                            BottomFace = GetExtremeFace(e.Item1, false, XYZ.BasisZ),
+                            ZDifference = GetFaceCenter(GetExtremeFace(e.Item1, true, XYZ.BasisZ)).Z - GetFaceCenter(GetExtremeFace(e.Item1, false, XYZ.BasisZ)).Z
+                        })
+                        .Where(e => e.TopFace != null && e.BottomFace != null)
+                        .OrderBy(e => e.ZDifference)
+                        .FirstOrDefault();
+
+                    if (elementWithMinZDiff != null && elementWithMinZDiff.TopFace != null && elementWithMinZDiff.BottomFace != null)
+                    {
+                        XYZ dimLinePosition = GetFaceCenter(elementWithMinZDiff.BottomFace) - new XYZ(offset, 0, 0);
+                        CreateDimension(elementWithMinZDiff.BottomFace, elementWithMinZDiff.TopFace, dimLinePosition);
+                    }
+                    else
+                    {
+                        TaskDialog.Show("Ошибка", "Не найден элемент с минимальной разницей по Z.");
+                    }
+                }
+
+                tx.Commit();
+                tx.Start();
+
+                RemoveZeroDimensionsFromFrontView();
+
+                tx.Commit();
             }
         }
+
+
+        private Reference GetExtremeFace(Element element, bool getMax, XYZ normal)
+        {
+            List<Reference> faces = GetParallelFaces(element, normal);
+            if (faces.Count == 0) return null;
+
+            return getMax
+                ? faces.OrderBy(f => GetFaceCenter(f).Z).LastOrDefault() 
+                : faces.OrderBy(f => GetFaceCenter(f).Z).FirstOrDefault(); 
+        }
+
 
         private List<Reference> GetParallelFaces(Element element, XYZ normal)
         {
@@ -236,7 +343,6 @@ namespace FERCPlugin.Core.Models
             if (face == null)
                 return XYZ.Zero;
 
-            // Получаем список всех граничных точек (вершин) грани
             List<XYZ> facePoints = new List<XYZ>();
 
             foreach (EdgeArray edgeArray in face.EdgeLoops)
@@ -250,7 +356,6 @@ namespace FERCPlugin.Core.Models
 
             if (facePoints.Count == 0) return XYZ.Zero;
 
-            // Вычисляем среднее арифметическое всех точек (центр грани)
             double avgX = facePoints.Average(p => p.X);
             double avgY = facePoints.Average(p => p.Y);
             double avgZ = facePoints.Average(p => p.Z);
@@ -262,7 +367,7 @@ namespace FERCPlugin.Core.Models
 
         private void CreateDimension(Reference ref1, Reference ref2, XYZ dimLinePosition)
         {
-            Line dimLine = Line.CreateBound(dimLinePosition, dimLinePosition + XYZ.BasisX);
+            Line dimLine = Line.CreateBound(dimLinePosition, dimLinePosition + XYZ.BasisZ);
 
             ReferenceArray refArray = new ReferenceArray();
             refArray.Append(ref1);
