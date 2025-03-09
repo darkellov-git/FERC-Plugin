@@ -42,7 +42,7 @@ namespace FERCPlugin.Core.Models
         private static double GetTotalLength(List<VentUnitItem> units) =>
             units.Sum(unit => unit.LengthTotal) * MM_TO_FEET;
 
-        public (List<Tuple<Element, VentUnitItem>>, List <Tuple<Element, VentUnitItem>>, double, double) BuildGeometry()
+        public (List<Tuple<Element, VentUnitItem>>, List<Tuple<Element, VentUnitItem>>, double, double) BuildGeometry()
         {
             List<Tuple<Element, VentUnitItem>> intakeElements = new();
             List<Tuple<Element, VentUnitItem>> exhaustElements = new();
@@ -55,7 +55,7 @@ namespace FERCPlugin.Core.Models
                     ? CreateIntakeGeometry(intakeElements, -_maxHeightIntake / 2)
                     : CreateIntakeGeometry(intakeElements, _maxHeightExhaust);
 
-                CreateExhaustGeometry(intakePositions, exhaustElements);
+                CreateExhaustGeometry(intakePositions, exhaustElements, intakeElements);
 
                 tx.Commit();
             }
@@ -96,7 +96,7 @@ namespace FERCPlugin.Core.Models
             return intakePositions;
         }
 
-        private void CreateExhaustGeometry(Dictionary<string, double> intakePositions, List<Tuple<Element, VentUnitItem>> exhaustElements)
+        private void CreateExhaustGeometry(Dictionary<string, double> intakePositions, List<Tuple<Element, VentUnitItem>> exhaustElements, List<Tuple<Element, VentUnitItem>> intakeElements)
         {
             double exhaustBaseZ = _isIntakeBelow ? _maxHeightIntake / 2 : -_maxHeightExhaust / 2;
             List<VentUnitItem> commonElements = new();
@@ -122,7 +122,17 @@ namespace FERCPlugin.Core.Models
                             commonIndex = i;
                         }
 
-                        totalCommonLength += unit.LengthTotal * MM_TO_FEET;
+                        var matchingIntakeElement = intakeElements.FirstOrDefault(e => e.Item2.Id.Split('-').First() == unit.Id.Split('-').First());
+
+                        if (matchingIntakeElement != null)
+                        {
+                            totalCommonLength += matchingIntakeElement.Item2.LengthTotal * MM_TO_FEET;
+                        }
+                        else
+                        {
+                            totalCommonLength += unit.LengthTotal * MM_TO_FEET;
+                        }
+
                         commonElements.Add(unit);
                         isCommonElement = true;
                         break;
@@ -137,8 +147,10 @@ namespace FERCPlugin.Core.Models
                         exhaustRight.Add(unit);
                 }
             }
+            double offsetLeft = intakeElements.Any(e => e.Item2.CutInfo.HasLeftCut) ? intakeElements.Max(e => e.Item2.CutInfo.CutSize) : 0;
+            double offsetRight = intakeElements.Any(e => e.Item2.CutInfo.HasRightCut) ? intakeElements.Max(e => e.Item2.CutInfo.CutSize) : 0;
 
-            double currentX = referenceX;
+            double currentX = referenceX + offsetLeft;
             for (int i = exhaustLeft.Count - 1; i >= 0; i--)
             {
                 currentX -= exhaustLeft[i].LengthTotal * MM_TO_FEET;
@@ -149,7 +161,7 @@ namespace FERCPlugin.Core.Models
                 }
             }
 
-            currentX = referenceX + totalCommonLength;
+            currentX = referenceX + totalCommonLength - offsetRight;
             foreach (var unit in exhaustRight)
             {
                 Element createdElement = CreateExhaustExtrusion(unit, currentX, exhaustBaseZ);
@@ -161,14 +173,15 @@ namespace FERCPlugin.Core.Models
             }
         }
 
-        private Element CreateExhaustExtrusion(VentUnitItem unit, double startX, double baseZ)
-        {
-            return CreateExtrusion(unit, startX, baseZ, _maxWidth, true);
-        }
 
         private Element CreateIntakeExtrusion(VentUnitItem unit, double startX, double baseZ)
         {
             return CreateExtrusion(unit, startX, baseZ, _maxWidth, false);
+        }
+
+        private Element CreateExhaustExtrusion(VentUnitItem unit, double startX, double baseZ)
+        {
+            return CreateExtrusion(unit, startX, baseZ, _maxWidth, true);
         }
 
         private Element CreateExtrusion(VentUnitItem unit, double startX, double baseZ, double maxWidth, bool isExhaust)
@@ -179,6 +192,7 @@ namespace FERCPlugin.Core.Models
 
             bool isFlexibleDamper = unit.Children.Any(child => child.Type.Contains("flexibleDamper"));
             bool isAirValve = unit.Children.Any(child => child.Type.Contains("airValve"));
+            bool isPlateUtilizer = unit.Children.Any(child => child.Type.Contains("plateUtilizer"));
 
             double minX = startX;
             double maxX = startX + length;
@@ -221,7 +235,71 @@ namespace FERCPlugin.Core.Models
                 curveArray.Append(Line.CreateBound(p5, p6));
                 curveArray.Append(Line.CreateBound(p6, p1));
             }
-            else
+            if (isPlateUtilizer)
+            {
+                var plateUtilizerChild = unit.Children.FirstOrDefault(child => child.Type.Contains("plateUtilizer"));
+                var topPanelSizes = plateUtilizerChild.ServicePanels[0].SizesX;
+                var bottomPanelSizes = plateUtilizerChild.ServicePanels[1].SizesX;
+
+                var uniqueTop = topPanelSizes.Except(bottomPanelSizes).ToList();
+                var uniqueBottom = bottomPanelSizes.Except(topPanelSizes).ToList();
+
+                bool hasLeftCut = uniqueBottom.Count > 0 && bottomPanelSizes.First() == uniqueBottom[0];
+                bool hasRightCut = uniqueBottom.Count > 0 && bottomPanelSizes.Last() == uniqueBottom[0];
+
+                double cutSize = uniqueBottom.FirstOrDefault() * MM_TO_FEET;
+                double topLength = length;
+                double bottomLength = length;
+
+                if (hasLeftCut) topLength -= cutSize;
+                if (hasRightCut) topLength -= cutSize;
+
+                XYZ p1 = new XYZ(minX, 0, minZ);
+                XYZ p2 = new XYZ(maxX, 0, minZ);
+                XYZ pRight_1 = new XYZ(maxX, 0, maxZ - height/2);
+                XYZ pRight_2 = new XYZ(maxX - cutSize, 0, maxZ - height / 2);
+                XYZ pRight_3 = new XYZ(maxX - cutSize, 0, maxZ);
+                XYZ p3 = new XYZ(maxX, 0, maxZ);
+                XYZ pLeft_1 = new XYZ(minX + cutSize, 0, maxZ);
+                XYZ pLeft_2 = new XYZ(minX + cutSize, 0, maxZ - height / 2);
+                XYZ pLeft_3 = new XYZ(minX, 0, maxZ - height / 2);
+                XYZ p4 = new XYZ(minX, 0, maxZ);
+
+                if (hasLeftCut)
+                {
+                    curveArray.Append(Line.CreateBound(p1, p2));
+                    curveArray.Append(Line.CreateBound(p2, p3));
+                    curveArray.Append(Line.CreateBound(p3, pLeft_1));
+                    curveArray.Append(Line.CreateBound(pLeft_1, pLeft_2));
+                    curveArray.Append(Line.CreateBound(pLeft_2, pLeft_3));
+                    curveArray.Append(Line.CreateBound(pLeft_3, p1));
+                }
+                else if (hasRightCut)
+                {
+                    curveArray.Append(Line.CreateBound(p1, p2));
+                    curveArray.Append(Line.CreateBound(p2, p3));
+                    curveArray.Append(Line.CreateBound(p3, pRight_1));
+                    curveArray.Append(Line.CreateBound(pRight_1, pRight_2));
+                    curveArray.Append(Line.CreateBound(pRight_2, pRight_3));
+                    curveArray.Append(Line.CreateBound(pRight_3, p1));
+                }
+                else
+                {
+                    curveArray.Append(Line.CreateBound(p1, p2));
+                    curveArray.Append(Line.CreateBound(p2, pRight_1));
+                    curveArray.Append(Line.CreateBound(pRight_1, pRight_2));
+                    curveArray.Append(Line.CreateBound(pRight_2, pRight_3));
+                    curveArray.Append(Line.CreateBound(pRight_3, pLeft_1));
+                    curveArray.Append(Line.CreateBound(pLeft_1, pLeft_2));
+                    curveArray.Append(Line.CreateBound(pLeft_2, pLeft_3));
+                    curveArray.Append(Line.CreateBound(pLeft_3, p1));
+                }
+
+                unit.CutInfo.HasLeftCut = hasLeftCut;
+                unit.CutInfo.HasRightCut = hasRightCut;
+                unit.CutInfo.CutSize = cutSize;
+            }
+            if (!isFlexibleDamper & !isPlateUtilizer)
             {
                 curveArray.Append(Line.CreateBound(new XYZ(minX, 0, minZ), new XYZ(maxX, 0, minZ)));
                 curveArray.Append(Line.CreateBound(new XYZ(maxX, 0, minZ), new XYZ(maxX, 0, maxZ)));
@@ -240,14 +318,13 @@ namespace FERCPlugin.Core.Models
             extrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(offset);
             extrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(width + offset);
 
-
-            if (unit.Category == "block")
+            if (unit.Category == "block" || unit.Category == "utilization_cross")
             {
-                double accumulatedLength = 0; 
+                double accumulatedLength = 0;
 
                 foreach (var child in unit.Children)
                 {
-                    if (child.Type.Contains("waterHeater") || child.Type.Contains("waterCooler"))
+                    if (child.Type.Contains("waterHeater") || child.Type.Contains("waterCooler") || child.Type.Contains("plateUtilizer"))
                     {
                         foreach (var pipe in child.Pipes)
                         {

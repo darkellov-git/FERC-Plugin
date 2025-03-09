@@ -58,7 +58,6 @@ namespace FERCPlugin.Core.Models
 
         private void CreateHorizontalDimensions(List<Tuple<Element, VentUnitItem>> elements, double offset, bool isExhaust)
         {
-
             using (Transaction tx = new(_doc, "Adding annotations"))
             {
                 tx.Start();

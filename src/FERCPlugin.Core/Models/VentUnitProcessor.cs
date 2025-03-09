@@ -60,8 +60,8 @@ public class VentUnitProcessor
 
     private void AdjustListsBasedOnUtilization()
     {
-        int intakeUtilIndex = Intake.FindIndex(item => item.Category.Contains("utilization"));
-        int exhaustUtilIndex = Exhaust.FindIndex(item => item.Category.Contains("utilization"));
+        int intakeUtilIndex = Intake.FindIndex(item => item.Category.Contains("utilization_cross"));
+        int exhaustUtilIndex = Exhaust.FindIndex(item => item.Category.Contains("utilization_cross"));
 
         if (intakeUtilIndex >= 0 && exhaustUtilIndex >= 0)
         {

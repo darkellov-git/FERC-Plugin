@@ -12,6 +12,8 @@
         public List<VentUnitPanel> FloorPanels { get; set; } = new();
         public List<VentUnitPanel> BackPanels { get; set; } = new();
         public List<VentUnitChild> Children { get; set; } = new();
+        public UtilizerUnitCutInfo CutInfo { get; set; } = new UtilizerUnitCutInfo();
+
     }
 
     public class VentUnitPanel
@@ -36,5 +38,12 @@
         public double X { get; set; }
         public double Y { get; set; }
         public double D { get; set; }
+    }
+
+    public class UtilizerUnitCutInfo
+    {
+        public bool HasLeftCut { get; set; }
+        public bool HasRightCut { get; set; }
+        public double CutSize { get; set; }
     }
 }
