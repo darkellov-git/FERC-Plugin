@@ -34,11 +34,14 @@ namespace FERCPlugin.Main
                 jsonFormatter.FormatJson(inputFilePath);
 
                 bool isIntakeBelow = true;
+                string intakeServiceside = "unknown";
+
                 if (File.Exists(formattedJsonPath))
                 {
                     string jsonContent = File.ReadAllText(formattedJsonPath);
                     JObject rootObj = JObject.Parse(jsonContent);
                     isIntakeBelow = rootObj.SelectToken("isIntakeBelow")?.Value<bool>() ?? false;
+                    intakeServiceside = rootObj.SelectToken("serviceSideIntake")?.Value<string>() ?? "unknown";
                 }
 
                 bool hasUtilizationCross = false;
@@ -54,7 +57,7 @@ namespace FERCPlugin.Main
                 }
 
                 VentUnitProcessor processor = new();
-                processor.ProcessJson(formattedJsonPath, hasUtilizationCross);
+                processor.ProcessJson(formattedJsonPath, hasUtilizationCross, intakeServiceside);
 
                 Document familyDoc = revitApp.NewFamilyDocument(templatePath);
                 if (familyDoc == null)

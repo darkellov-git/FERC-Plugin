@@ -6,7 +6,7 @@ public class VentUnitProcessor
     public List<VentUnitItem> Intake { get; private set; } = new();
     public List<VentUnitItem> Exhaust { get; private set; } = new();
 
-    public void ProcessJson(string jsonFilePath, bool hasUtilizationCross)
+    public void ProcessJson(string jsonFilePath, bool hasUtilizationCross, string intakeServiceside)
     {
         if (!File.Exists(jsonFilePath))
         {
@@ -24,7 +24,7 @@ public class VentUnitProcessor
 
         RemoveDuplicateItemsFromExhaust();
 
-        if (hasUtilizationCross)
+        if (hasUtilizationCross & intakeServiceside == "left")
         {
             AdjustListsBasedOnUtilization();
         }

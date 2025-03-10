@@ -237,14 +237,23 @@ namespace FERCPlugin.Core.Models
             if (isPlateUtilizer)
             {
                 var plateUtilizerChild = unit.Children.FirstOrDefault(child => child.Type.Contains("plateUtilizer"));
-                var topPanelSizes = plateUtilizerChild.ServicePanels[0].SizesX;
-                var bottomPanelSizes = plateUtilizerChild.ServicePanels[1].SizesX;
 
+                // Собираем все SizesX из панелей
+                var allPanelSizes = plateUtilizerChild.ServicePanels.Select(p => p.SizesX).ToList();
+
+                // Уникальные элементы в первой половине (считаем это "верхними" панелями)
+                var topPanelSizes = allPanelSizes.Take(allPanelSizes.Count / 2).SelectMany(x => x).Distinct().ToList();
+
+                // Уникальные элементы во второй половине (считаем это "нижними" панелями)
+                var bottomPanelSizes = allPanelSizes.Skip(allPanelSizes.Count / 2).SelectMany(x => x).Distinct().ToList();
+
+                // Найдем, какие размеры есть только в одной из групп
                 var uniqueTop = topPanelSizes.Except(bottomPanelSizes).ToList();
                 var uniqueBottom = bottomPanelSizes.Except(topPanelSizes).ToList();
 
-                bool hasLeftCut = uniqueBottom.Count > 0 && bottomPanelSizes.First() == uniqueBottom[0];
-                bool hasRightCut = uniqueBottom.Count > 0 && bottomPanelSizes.Last() == uniqueBottom[0];
+                // Проверка на срезы
+                bool hasLeftCut = uniqueBottom.Any() && bottomPanelSizes.First() == uniqueBottom.First();
+                bool hasRightCut = uniqueBottom.Any() && bottomPanelSizes.Last() == uniqueBottom.First();
 
                 double cutSize = uniqueBottom.FirstOrDefault() * MM_TO_FEET;
                 double topLength = length;
@@ -255,7 +264,7 @@ namespace FERCPlugin.Core.Models
 
                 XYZ p1 = new XYZ(minX, 0, minZ);
                 XYZ p2 = new XYZ(maxX, 0, minZ);
-                XYZ pRight_1 = new XYZ(maxX, 0, maxZ - height/2);
+                XYZ pRight_1 = new XYZ(maxX, 0, maxZ - height / 2);
                 XYZ pRight_2 = new XYZ(maxX - cutSize, 0, maxZ - height / 2);
                 XYZ pRight_3 = new XYZ(maxX - cutSize, 0, maxZ);
                 XYZ p3 = new XYZ(maxX, 0, maxZ);
@@ -264,7 +273,18 @@ namespace FERCPlugin.Core.Models
                 XYZ pLeft_3 = new XYZ(minX, 0, maxZ - height / 2);
                 XYZ p4 = new XYZ(minX, 0, maxZ);
 
-                if (hasLeftCut)
+                if (hasLeftCut && hasRightCut)
+                {
+                    curveArray.Append(Line.CreateBound(p1, p2));
+                    curveArray.Append(Line.CreateBound(p2, pRight_1));
+                    curveArray.Append(Line.CreateBound(pRight_1, pRight_2));
+                    curveArray.Append(Line.CreateBound(pRight_2, pRight_3));
+                    curveArray.Append(Line.CreateBound(pRight_3, pLeft_1));
+                    curveArray.Append(Line.CreateBound(pLeft_1, pLeft_2));
+                    curveArray.Append(Line.CreateBound(pLeft_2, pLeft_3));
+                    curveArray.Append(Line.CreateBound(pLeft_3, p1));
+                }
+                else if (hasLeftCut)
                 {
                     curveArray.Append(Line.CreateBound(p1, p2));
                     curveArray.Append(Line.CreateBound(p2, p3));
@@ -285,19 +305,16 @@ namespace FERCPlugin.Core.Models
                 else
                 {
                     curveArray.Append(Line.CreateBound(p1, p2));
-                    curveArray.Append(Line.CreateBound(p2, pRight_1));
-                    curveArray.Append(Line.CreateBound(pRight_1, pRight_2));
-                    curveArray.Append(Line.CreateBound(pRight_2, pRight_3));
-                    curveArray.Append(Line.CreateBound(pRight_3, pLeft_1));
-                    curveArray.Append(Line.CreateBound(pLeft_1, pLeft_2));
-                    curveArray.Append(Line.CreateBound(pLeft_2, pLeft_3));
-                    curveArray.Append(Line.CreateBound(pLeft_3, p1));
+                    curveArray.Append(Line.CreateBound(p2, p3));
+                    curveArray.Append(Line.CreateBound(p3, p4));
+                    curveArray.Append(Line.CreateBound(p4, p1));
                 }
 
                 unit.CutInfo.HasLeftCut = hasLeftCut;
                 unit.CutInfo.HasRightCut = hasRightCut;
                 unit.CutInfo.CutSize = cutSize;
             }
+
             if (!isFlexibleDamper & !isPlateUtilizer)
             {
                 curveArray.Append(Line.CreateBound(new XYZ(minX, 0, minZ), new XYZ(maxX, 0, minZ)));
