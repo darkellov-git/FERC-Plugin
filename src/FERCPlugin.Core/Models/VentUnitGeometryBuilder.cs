@@ -173,7 +173,6 @@ namespace FERCPlugin.Core.Models
             }
         }
 
-
         private Element CreateIntakeExtrusion(VentUnitItem unit, double startX, double baseZ)
         {
             return CreateExtrusion(unit, startX, baseZ, _maxWidth, false);
