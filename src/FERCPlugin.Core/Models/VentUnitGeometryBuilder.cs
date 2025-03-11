@@ -70,7 +70,92 @@ namespace FERCPlugin.Core.Models
             double currentX = -_totalLengthIntake / 2;
             Dictionary<string, double> intakePositions = new();
 
-            foreach (var unit in _intakeUnits)
+            var utilizer = _intakeUnits.FirstOrDefault(unit => unit.Id.Contains("plateUtilizer"));
+
+            List<VentUnitItem> leftElements = new();
+            List<VentUnitItem> rightElements = new();
+
+            if (utilizer != null)
+            {
+                int utilizerIndex = _intakeUnits.IndexOf(utilizer);
+                leftElements = _intakeUnits.Take(utilizerIndex).ToList();
+                rightElements = _intakeUnits.Skip(utilizerIndex + 1).ToList();
+            }
+
+            bool hasLeftCut = false, hasRightCut = false;
+            double cutSize = 0;
+
+            if (utilizer != null)
+            {
+                (hasLeftCut, hasRightCut, cutSize) = GetPlateUtilizerCutInfo(utilizer);
+            }
+
+            if (!_isIntakeBelow && hasLeftCut)
+            {
+                currentX += cutSize;
+            }
+
+            foreach (var unit in leftElements)
+            {
+                double elementBaseZ = intakeBaseZ;
+
+                if (!_isIntakeBelow && unit.HeightTotal * MM_TO_FEET > _maxHeightIntake / 2)
+                {
+                    elementBaseZ -= unit.HeightTotal * MM_TO_FEET - _maxHeightIntake / 2;
+                }
+
+                Element createdElement = CreateIntakeExtrusion(unit, currentX, elementBaseZ);
+
+                if (createdElement != null)
+                {
+                    intakeElements.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
+                }
+
+                foreach (var child in unit.Children)
+                {
+                    if (!intakePositions.ContainsKey(child.Id))
+                        intakePositions[child.Id] = currentX;
+                }
+
+                currentX += unit.LengthTotal * MM_TO_FEET;
+            }
+
+            if (!_isIntakeBelow && hasLeftCut)
+            {
+                currentX -= cutSize;
+            }
+
+            if (utilizer != null)
+            {
+                double elementBaseZ = intakeBaseZ;
+
+                if (!_isIntakeBelow && utilizer.HeightTotal * MM_TO_FEET > _maxHeightIntake / 2)
+                {
+                    elementBaseZ -= utilizer.HeightTotal * MM_TO_FEET - _maxHeightIntake / 2;
+                }
+
+                Element createdElement = CreateIntakeExtrusion(utilizer, currentX, elementBaseZ);
+
+                if (createdElement != null)
+                {
+                    intakeElements.Add(new Tuple<Element, VentUnitItem>(createdElement, utilizer));
+                }
+
+                foreach (var child in utilizer.Children)
+                {
+                    if (!intakePositions.ContainsKey(child.Id))
+                        intakePositions[child.Id] = currentX;
+                }
+
+                currentX += utilizer.LengthTotal * MM_TO_FEET;
+            }
+
+            if (!_isIntakeBelow && hasRightCut)
+            {
+                currentX -= cutSize;
+            }
+
+            foreach (var unit in rightElements)
             {
                 double elementBaseZ = intakeBaseZ;
 
@@ -149,8 +234,14 @@ namespace FERCPlugin.Core.Models
                         exhaustRight.Add(unit);
                 }
             }
-            double offsetLeft = intakeElements.Any(e => e.Item2.CutInfo.HasLeftCut) ? intakeElements.Max(e => e.Item2.CutInfo.CutSize) : 0;
-            double offsetRight = intakeElements.Any(e => e.Item2.CutInfo.HasRightCut) ? intakeElements.Max(e => e.Item2.CutInfo.CutSize) : 0;
+            double offsetLeft = 0;
+            double offsetRight = 0;
+
+            if (_isIntakeBelow)
+            {
+                offsetLeft = intakeElements.Any(e => e.Item2.CutInfo.HasLeftCut) ? intakeElements.Max(e => e.Item2.CutInfo.CutSize) : 0;
+                offsetRight = intakeElements.Any(e => e.Item2.CutInfo.HasRightCut) ? intakeElements.Max(e => e.Item2.CutInfo.CutSize) : 0;
+            }
 
             double currentX = referenceX + offsetLeft;
             for (int i = exhaustLeft.Count - 1; i >= 0; i--)
@@ -238,21 +329,7 @@ namespace FERCPlugin.Core.Models
             }
             if (isPlateUtilizer)
             {
-                var plateUtilizerChild = unit.Children.FirstOrDefault(child => child.Type.Contains("plateUtilizer"));
-
-                var allPanelSizes = plateUtilizerChild.ServicePanels.Select(p => p.SizesX).ToList();
-
-                var topPanelSizes = allPanelSizes.Take(allPanelSizes.Count / 2).SelectMany(x => x).Distinct().ToList();
-
-                var bottomPanelSizes = allPanelSizes.Skip(allPanelSizes.Count / 2).SelectMany(x => x).Distinct().ToList();
-
-                var uniqueTop = topPanelSizes.Except(bottomPanelSizes).ToList();
-                var uniqueBottom = bottomPanelSizes.Except(topPanelSizes).ToList();
-
-                bool hasLeftCut = uniqueBottom.Any() && bottomPanelSizes.First() == uniqueBottom.First();
-                bool hasRightCut = uniqueBottom.Any() && bottomPanelSizes.Last() == uniqueBottom.First();
-
-                double cutSize = uniqueBottom.FirstOrDefault() * MM_TO_FEET;
+                var (hasLeftCut, hasRightCut, cutSize) = GetPlateUtilizerCutInfo(unit);
                 double topLength = length;
                 double bottomLength = length;
 
@@ -504,5 +581,27 @@ namespace FERCPlugin.Core.Models
             windowExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(0);
             windowExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(-0.1);
         }
+
+        private (bool hasLeftCut, bool hasRightCut, double cutSize) GetPlateUtilizerCutInfo(VentUnitItem unit)
+        {
+            var plateUtilizerChild = unit.Children.FirstOrDefault(child => child.Type.Contains("plateUtilizer"));
+            if (plateUtilizerChild == null)
+                return (false, false, 0);
+
+            var allPanelSizes = plateUtilizerChild.ServicePanels.Select(p => p.SizesX).ToList();
+
+            var topPanelSizes = allPanelSizes.Take(allPanelSizes.Count / 2).SelectMany(x => x).Distinct().ToList();
+            var bottomPanelSizes = allPanelSizes.Skip(allPanelSizes.Count / 2).SelectMany(x => x).Distinct().ToList();
+
+            var uniqueTop = topPanelSizes.Except(bottomPanelSizes).ToList();
+            var uniqueBottom = bottomPanelSizes.Except(topPanelSizes).ToList();
+
+            bool hasLeftCut = uniqueBottom.Any() && bottomPanelSizes.First() == uniqueBottom.First();
+            bool hasRightCut = uniqueBottom.Any() && bottomPanelSizes.Last() == uniqueBottom.First();
+            double cutSize = uniqueBottom.FirstOrDefault() * MM_TO_FEET;
+
+            return (hasLeftCut, hasRightCut, cutSize);
+        }
+
     }
 }
