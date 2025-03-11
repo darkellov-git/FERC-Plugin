@@ -26,22 +26,18 @@ namespace FERCPlugin.Core.Models
             string jsonContent = File.ReadAllText(inputFilePath);
             JObject rootObj = JObject.Parse(jsonContent);
 
-            // Получаем isIntakeBelow из design
             bool isIntakeBelow = rootObj.SelectToken("design.isIntakeBelow")?.Value<bool>() ?? false;
 
-            // Получаем serviceSideIntake из корня объекта
             string serviceSideIntake = rootObj.SelectToken("serviceSideIntake")?.Value<string>() ?? "right";
 
-            // Получаем result.drawing
             JToken drawingToken = rootObj.SelectToken("result.drawing") ?? throw new Exception("В исходном файле не найден объект 'result.drawing'.");
 
             RemoveUnwantedElements(drawingToken);
 
-            // Преобразуем drawingToken в объект
             if (drawingToken is JObject drawingObj)
             {
                 drawingObj["isIntakeBelow"] = isIntakeBelow;
-                drawingObj["serviceSideIntake"] = serviceSideIntake; // ✅ Добавляем serviceSideIntake
+                drawingObj["serviceSideIntake"] = serviceSideIntake; 
             }
 
             string formattedJson = drawingToken.ToString(Newtonsoft.Json.Formatting.Indented);
@@ -51,7 +47,6 @@ namespace FERCPlugin.Core.Models
 
             File.WriteAllText(outputFilePath, formattedJson);
         }
-
 
         private void RemoveUnwantedElements(JToken token)
         {

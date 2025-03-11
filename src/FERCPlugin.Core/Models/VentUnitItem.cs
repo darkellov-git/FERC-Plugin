@@ -31,6 +31,7 @@
         public double WidthTotal { get; set; }
         public List<VentUnitPanel> ServicePanels { get; set; } = new();
         public List<VentUnitPipe> Pipes { get; set; } = new();
+        public VentUnitWindow Window { get; set; }
     }
 
     public class VentUnitPipe
@@ -38,6 +39,13 @@
         public double X { get; set; }
         public double Y { get; set; }
         public double D { get; set; }
+    }
+
+    public class VentUnitWindow
+    {
+        public double X { get; set; }
+        public double Y { get; set; }  
+        public double D { get; set; } 
     }
 
     public class UtilizerUnitCutInfo

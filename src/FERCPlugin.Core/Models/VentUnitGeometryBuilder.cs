@@ -238,20 +238,15 @@ namespace FERCPlugin.Core.Models
             {
                 var plateUtilizerChild = unit.Children.FirstOrDefault(child => child.Type.Contains("plateUtilizer"));
 
-                // Собираем все SizesX из панелей
                 var allPanelSizes = plateUtilizerChild.ServicePanels.Select(p => p.SizesX).ToList();
 
-                // Уникальные элементы в первой половине (считаем это "верхними" панелями)
                 var topPanelSizes = allPanelSizes.Take(allPanelSizes.Count / 2).SelectMany(x => x).Distinct().ToList();
 
-                // Уникальные элементы во второй половине (считаем это "нижними" панелями)
                 var bottomPanelSizes = allPanelSizes.Skip(allPanelSizes.Count / 2).SelectMany(x => x).Distinct().ToList();
 
-                // Найдем, какие размеры есть только в одной из групп
                 var uniqueTop = topPanelSizes.Except(bottomPanelSizes).ToList();
                 var uniqueBottom = bottomPanelSizes.Except(topPanelSizes).ToList();
 
-                // Проверка на срезы
                 bool hasLeftCut = uniqueBottom.Any() && bottomPanelSizes.First() == uniqueBottom.First();
                 bool hasRightCut = uniqueBottom.Any() && bottomPanelSizes.Last() == uniqueBottom.First();
 
@@ -352,6 +347,16 @@ namespace FERCPlugin.Core.Models
                 }
             }
 
+            double accumulatedLengthWindows = 0;
+            foreach (var child in unit.Children)
+            {
+                if (child.Window != null)
+                {
+                    CreateWindowExtrusion(startX + accumulatedLengthWindows + (child.Window.X * MM_TO_FEET), baseZ, child.Window);
+                }
+                accumulatedLengthWindows += child.LengthTotal * MM_TO_FEET;
+            }
+
             return extrusion;
         }
 
@@ -378,6 +383,36 @@ namespace FERCPlugin.Core.Models
 
             pipeExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(0);
             pipeExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(-1);
+        }
+
+        private void CreateWindowExtrusion(double startX, double baseZ, VentUnitWindow window)
+        {
+            double windowX = startX;
+            double windowZ = baseZ + (window.Y * MM_TO_FEET);
+            double outerRadius = (window.D / 2) * MM_TO_FEET;
+            double innerRadius = outerRadius - 20 * MM_TO_FEET; 
+
+            if (outerRadius <= 0 || innerRadius <= 0) return;
+
+            XYZ center = new XYZ(windowX, 0, windowZ);
+
+            CurveArray outerCurve = new CurveArray();
+            outerCurve.Append(Arc.Create(center, outerRadius, 0, 2 * Math.PI, XYZ.BasisX, XYZ.BasisZ));
+
+            CurveArray innerCurve = new CurveArray();
+            innerCurve.Append(Arc.Create(center, innerRadius, 0, 2 * Math.PI, XYZ.BasisX, XYZ.BasisZ));
+
+            CurveArrArray windowCurves = new CurveArrArray();
+            windowCurves.Append(outerCurve);
+            windowCurves.Append(innerCurve);
+
+            Plane windowPlane = Plane.CreateByNormalAndOrigin(XYZ.BasisY, XYZ.Zero);
+            SketchPlane windowSketch = SketchPlane.Create(_doc, windowPlane);
+
+            Extrusion windowExtrusion = _doc.FamilyCreate.NewExtrusion(true, windowCurves, windowSketch, 2);
+
+            windowExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(0);
+            windowExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(-0.1); 
         }
     }
 }
