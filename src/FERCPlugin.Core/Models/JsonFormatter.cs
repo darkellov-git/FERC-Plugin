@@ -27,21 +27,20 @@ namespace FERCPlugin.Core.Models
             JObject rootObj = JObject.Parse(jsonContent);
 
             bool isIntakeBelow = rootObj.SelectToken("design.isIntakeBelow")?.Value<bool>() ?? false;
-
             string serviceSideIntake = rootObj.SelectToken("serviceSideIntake")?.Value<string>() ?? "right";
+            double frameHeight = rootObj.SelectToken("design.frame.frame.height")?.Value<double>() ?? 0.0;
 
             JToken drawingToken = rootObj.SelectToken("result.drawing") ?? throw new Exception("В исходном файле не найден объект 'result.drawing'.");
-
             RemoveUnwantedElements(drawingToken);
 
             if (drawingToken is JObject drawingObj)
             {
                 drawingObj["isIntakeBelow"] = isIntakeBelow;
-                drawingObj["serviceSideIntake"] = serviceSideIntake; 
+                drawingObj["serviceSideIntake"] = serviceSideIntake;
+                drawingObj["frameHeight"] = frameHeight;
             }
 
             string formattedJson = drawingToken.ToString(Newtonsoft.Json.Formatting.Indented);
-
             string directory = Path.GetDirectoryName(inputFilePath);
             string outputFilePath = Path.Combine(directory, "drawing_formatted.json");
 

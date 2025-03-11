@@ -6,6 +6,7 @@ using FERCPlugin.Core.Models;
 using TaskDialog = Autodesk.Revit.UI.TaskDialog;
 using Application = Autodesk.Revit.ApplicationServices.Application;
 using Newtonsoft.Json.Linq;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.Window;
 
 namespace FERCPlugin.Main
 {
@@ -35,6 +36,7 @@ namespace FERCPlugin.Main
 
                 bool isIntakeBelow = true;
                 string intakeServiceside = "unknown";
+                double frameHeight = 0.0;
 
                 if (File.Exists(formattedJsonPath))
                 {
@@ -42,6 +44,7 @@ namespace FERCPlugin.Main
                     JObject rootObj = JObject.Parse(jsonContent);
                     isIntakeBelow = rootObj.SelectToken("isIntakeBelow")?.Value<bool>() ?? false;
                     intakeServiceside = rootObj.SelectToken("serviceSideIntake")?.Value<string>() ?? "unknown";
+                    frameHeight = rootObj.SelectToken("frameHeight")?.Value<double>() ?? 0.0;
                 }
 
                 bool hasUtilizationCross = false;
@@ -80,7 +83,7 @@ namespace FERCPlugin.Main
                 UIDocument uiFamilyDoc = uiApp.OpenAndActivateDocument(familySavePath);
                 Document reopenedFamilyDoc = uiFamilyDoc.Document;
 
-                VentUnitGeometryBuilder builder = new VentUnitGeometryBuilder(reopenedFamilyDoc, processor.Intake, processor.Exhaust, isIntakeBelow);
+                VentUnitGeometryBuilder builder = new VentUnitGeometryBuilder(reopenedFamilyDoc, processor.Intake, processor.Exhaust, isIntakeBelow, frameHeight);
 
                 var (intakeElements, exhaustElements, maxHeightIntake, maxHeightExhaust) = builder.BuildGeometry();
 

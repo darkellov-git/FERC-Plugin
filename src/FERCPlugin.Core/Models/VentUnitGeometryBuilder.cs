@@ -8,6 +8,7 @@ namespace FERCPlugin.Core.Models
         private readonly List<VentUnitItem> _intakeUnits;
         private readonly List<VentUnitItem> _exhaustUnits;
         private readonly bool _isIntakeBelow;
+        private readonly double _frameHeight;
 
         private double _maxHeightIntake;
         private double _maxHeightExhaust;
@@ -17,12 +18,13 @@ namespace FERCPlugin.Core.Models
 
         private const double MM_TO_FEET = 0.00328084;
 
-        public VentUnitGeometryBuilder(Document doc, List<VentUnitItem> intakeUnits, List<VentUnitItem> exhaustUnits, bool isIntakeBelow)
+        public VentUnitGeometryBuilder(Document doc, List<VentUnitItem> intakeUnits, List<VentUnitItem> exhaustUnits, bool isIntakeBelow, double frameHeight)
         {
             _doc = doc;
             _intakeUnits = intakeUnits;
             _exhaustUnits = exhaustUnits;
             _isIntakeBelow = isIntakeBelow;
+            _frameHeight = frameHeight;
 
             _maxHeightIntake = GetMaxHeight(_intakeUnits);
             _maxHeightExhaust = GetMaxHeight(_exhaustUnits);
@@ -357,8 +359,96 @@ namespace FERCPlugin.Core.Models
                 accumulatedLengthWindows += child.LengthTotal * MM_TO_FEET;
             }
 
+            if ((!isEndElement && _isIntakeBelow && !isExhaust) || (!isEndElement && !_isIntakeBelow && isExhaust))
+            {
+                double frameMinZ = Math.Round(minZ - _frameHeight * MM_TO_FEET, 2);
+                double frameMaxZ = Math.Round(minZ, 2);
+                double frameMidZ = Math.Round((frameMinZ + frameMaxZ) / 2, 2);
+                double frameMidX = Math.Round((minX + maxX) / 2, 2);
+                double roundedMinX = Math.Round(minX, 2);
+                double roundedMaxX = Math.Round(maxX, 2);
+
+                CurveArray frameCurves = new CurveArray();
+                XYZ f1 = new XYZ(roundedMinX, 0, frameMinZ);
+                XYZ f2 = new XYZ(roundedMaxX, 0, frameMinZ);
+                XYZ f3 = new XYZ(roundedMaxX, 0, frameMaxZ);
+                XYZ f4 = new XYZ(roundedMinX, 0, frameMaxZ);
+
+                frameCurves.Append(Line.CreateBound(f1, f2));
+                frameCurves.Append(Line.CreateBound(f2, f3));
+                frameCurves.Append(Line.CreateBound(f3, f4));
+                frameCurves.Append(Line.CreateBound(f4, f1));
+
+                CurveArray holeMidCurves = new CurveArray();
+                CurveArray holeLeftCurves = new CurveArray();
+                CurveArray holeRightCurves = new CurveArray();
+
+                if (unit.LengthTotal < 500)
+                {
+                    XYZ rc1 = new XYZ(frameMidX - 0.35, 0, frameMidZ);
+                    XYZ rc2 = new XYZ(frameMidX - 0.25, 0, frameMidZ - 0.1);
+                    XYZ rc3 = new XYZ(frameMidX + 0.25, 0, frameMidZ - 0.1);
+                    XYZ rc4 = new XYZ(frameMidX + 0.35, 0, frameMidZ);
+                    XYZ rc5 = new XYZ(frameMidX + 0.25, 0, frameMidZ + 0.1);
+                    XYZ rc6 = new XYZ(frameMidX - 0.25, 0, frameMidZ + 0.1);
+
+                    holeMidCurves.Append(Line.CreateBound(rc1, rc2));
+                    holeMidCurves.Append(Line.CreateBound(rc2, rc3));
+                    holeMidCurves.Append(Line.CreateBound(rc3, rc4));
+                    holeMidCurves.Append(Line.CreateBound(rc4, rc5));
+                    holeMidCurves.Append(Line.CreateBound(rc5, rc6));
+                    holeMidCurves.Append(Line.CreateBound(rc6, rc1));
+                }
+                else
+                {
+                    XYZ rl1 = new XYZ(roundedMinX + 0.2, 0, frameMidZ);
+                    XYZ rl2 = new XYZ(roundedMinX + 0.3, 0, frameMidZ - 0.1);
+                    XYZ rl3 = new XYZ(roundedMinX + 0.8, 0, frameMidZ - 0.1);
+                    XYZ rl4 = new XYZ(roundedMinX + 0.9, 0, frameMidZ);
+                    XYZ rl5 = new XYZ(roundedMinX + 0.8, 0, frameMidZ + 0.1);
+                    XYZ rl6 = new XYZ(roundedMinX + 0.3, 0, frameMidZ + 0.1);
+
+                    holeLeftCurves.Append(Line.CreateBound(rl1, rl2));
+                    holeLeftCurves.Append(Line.CreateBound(rl2, rl3));
+                    holeLeftCurves.Append(Line.CreateBound(rl3, rl4));
+                    holeLeftCurves.Append(Line.CreateBound(rl4, rl5));
+                    holeLeftCurves.Append(Line.CreateBound(rl5, rl6));
+                    holeLeftCurves.Append(Line.CreateBound(rl6, rl1));
+
+                    XYZ rr1 = new XYZ(roundedMaxX - 0.2, 0, frameMidZ);
+                    XYZ rr2 = new XYZ(roundedMaxX - 0.3, 0, frameMidZ - 0.1);
+                    XYZ rr3 = new XYZ(roundedMaxX - 0.8, 0, frameMidZ - 0.1);
+                    XYZ rr4 = new XYZ(roundedMaxX - 0.9, 0, frameMidZ);
+                    XYZ rr5 = new XYZ(roundedMaxX - 0.8, 0, frameMidZ + 0.1);
+                    XYZ rr6 = new XYZ(roundedMaxX - 0.3, 0, frameMidZ + 0.1);
+
+                    holeRightCurves.Append(Line.CreateBound(rr1, rr2));
+                    holeRightCurves.Append(Line.CreateBound(rr2, rr3));
+                    holeRightCurves.Append(Line.CreateBound(rr3, rr4));
+                    holeRightCurves.Append(Line.CreateBound(rr4, rr5));
+                    holeRightCurves.Append(Line.CreateBound(rr5, rr6));
+                    holeRightCurves.Append(Line.CreateBound(rr6, rr1));
+                }
+
+                CurveArrArray frameCurveArrArray = new CurveArrArray();
+                frameCurveArrArray.Append(frameCurves);
+
+                if (holeMidCurves.Size > 0 || holeLeftCurves.Size > 0 || holeRightCurves.Size > 0)
+                {
+                    frameCurveArrArray.Append(holeMidCurves);
+                    frameCurveArrArray.Append(holeLeftCurves);
+                    frameCurveArrArray.Append(holeRightCurves);
+                }
+
+                Plane framePlane = Plane.CreateByNormalAndOrigin(XYZ.BasisY, XYZ.Zero);
+                SketchPlane frameSketchPlane = SketchPlane.Create(_doc, framePlane);
+
+                Extrusion frameExtrusion = _doc.FamilyCreate.NewExtrusion(true, frameCurveArrArray, frameSketchPlane, _maxWidth);
+            }
+
             return extrusion;
         }
+
 
         private void CreatePipeExtrusion(double startX, double baseZ, VentUnitPipe pipe)
         {
@@ -390,7 +480,7 @@ namespace FERCPlugin.Core.Models
             double windowX = startX;
             double windowZ = baseZ + (window.Y * MM_TO_FEET);
             double outerRadius = (window.D / 2) * MM_TO_FEET;
-            double innerRadius = outerRadius - 20 * MM_TO_FEET; 
+            double innerRadius = outerRadius - 20 * MM_TO_FEET;
 
             if (outerRadius <= 0 || innerRadius <= 0) return;
 
@@ -412,7 +502,7 @@ namespace FERCPlugin.Core.Models
             Extrusion windowExtrusion = _doc.FamilyCreate.NewExtrusion(true, windowCurves, windowSketch, 2);
 
             windowExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(0);
-            windowExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(-0.1); 
+            windowExtrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(-0.1);
         }
     }
 }
