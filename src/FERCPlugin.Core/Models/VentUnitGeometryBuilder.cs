@@ -72,112 +72,143 @@ namespace FERCPlugin.Core.Models
 
             var utilizer = _intakeUnits.FirstOrDefault(unit => unit.Id.Contains("plateUtilizer"));
 
-            List<VentUnitItem> leftElements = new();
-            List<VentUnitItem> rightElements = new();
-
-            if (utilizer != null)
+            if(utilizer != null)
             {
-                int utilizerIndex = _intakeUnits.IndexOf(utilizer);
-                leftElements = _intakeUnits.Take(utilizerIndex).ToList();
-                rightElements = _intakeUnits.Skip(utilizerIndex + 1).ToList();
+                List<VentUnitItem> leftElements = new();
+                List<VentUnitItem> rightElements = new();
+
+                if (utilizer != null)
+                {
+                    int utilizerIndex = _intakeUnits.IndexOf(utilizer);
+                    leftElements = _intakeUnits.Take(utilizerIndex).ToList();
+                    rightElements = _intakeUnits.Skip(utilizerIndex + 1).ToList();
+                }
+
+                bool hasLeftCut = false, hasRightCut = false;
+                double cutSize = 0;
+
+                if (utilizer != null)
+                {
+                    (hasLeftCut, hasRightCut, cutSize) = GetPlateUtilizerCutInfo(utilizer);
+                }
+
+                if (!_isIntakeBelow && hasLeftCut)
+                {
+                    currentX += cutSize;
+                }
+
+                foreach (var unit in leftElements)
+                {
+                    double elementBaseZ = intakeBaseZ;
+
+                    if (!_isIntakeBelow && unit.HeightTotal * MM_TO_FEET > _maxHeightIntake / 2)
+                    {
+                        elementBaseZ -= unit.HeightTotal * MM_TO_FEET - _maxHeightIntake / 2;
+                    }
+
+                    Element createdElement = CreateIntakeExtrusion(unit, currentX, elementBaseZ);
+
+                    if (createdElement != null)
+                    {
+                        intakeElements.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
+                    }
+
+                    foreach (var child in unit.Children)
+                    {
+                        if (!intakePositions.ContainsKey(child.Id))
+                            intakePositions[child.Id] = currentX;
+                    }
+
+                    currentX += unit.LengthTotal * MM_TO_FEET;
+                }
+
+                if (!_isIntakeBelow && hasLeftCut)
+                {
+                    currentX -= cutSize;
+                }
+
+                if (utilizer != null)
+                {
+                    double elementBaseZ = intakeBaseZ;
+
+                    if (!_isIntakeBelow && utilizer.HeightTotal * MM_TO_FEET > _maxHeightIntake / 2)
+                    {
+                        elementBaseZ -= utilizer.HeightTotal * MM_TO_FEET - _maxHeightIntake / 2;
+                    }
+
+                    Element createdElement = CreateIntakeExtrusion(utilizer, currentX, elementBaseZ);
+
+                    if (createdElement != null)
+                    {
+                        intakeElements.Add(new Tuple<Element, VentUnitItem>(createdElement, utilizer));
+                    }
+
+                    foreach (var child in utilizer.Children)
+                    {
+                        if (!intakePositions.ContainsKey(child.Id))
+                            intakePositions[child.Id] = currentX;
+                    }
+
+                    currentX += utilizer.LengthTotal * MM_TO_FEET;
+                }
+
+                if (!_isIntakeBelow && hasRightCut)
+                {
+                    currentX -= cutSize;
+                }
+
+                foreach (var unit in rightElements)
+                {
+                    double elementBaseZ = intakeBaseZ;
+
+                    if (!_isIntakeBelow && unit.HeightTotal * MM_TO_FEET > _maxHeightIntake / 2)
+                    {
+                        elementBaseZ -= unit.HeightTotal * MM_TO_FEET - _maxHeightIntake / 2;
+                    }
+
+                    Element createdElement = CreateIntakeExtrusion(unit, currentX, elementBaseZ);
+
+                    if (createdElement != null)
+                    {
+                        intakeElements.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
+                    }
+
+                    foreach (var child in unit.Children)
+                    {
+                        if (!intakePositions.ContainsKey(child.Id))
+                            intakePositions[child.Id] = currentX;
+                    }
+
+                    currentX += unit.LengthTotal * MM_TO_FEET;
+                }
             }
 
-            bool hasLeftCut = false, hasRightCut = false;
-            double cutSize = 0;
-
-            if (utilizer != null)
+            if(utilizer == null)
             {
-                (hasLeftCut, hasRightCut, cutSize) = GetPlateUtilizerCutInfo(utilizer);
-            }
-
-            if (!_isIntakeBelow && hasLeftCut)
-            {
-                currentX += cutSize;
-            }
-
-            foreach (var unit in leftElements)
-            {
-                double elementBaseZ = intakeBaseZ;
-
-                if (!_isIntakeBelow && unit.HeightTotal * MM_TO_FEET > _maxHeightIntake / 2)
+                foreach (var unit in _intakeUnits)
                 {
-                    elementBaseZ -= unit.HeightTotal * MM_TO_FEET - _maxHeightIntake / 2;
+                    double elementBaseZ = intakeBaseZ;
+
+                    if (!_isIntakeBelow && unit.HeightTotal * MM_TO_FEET > _maxHeightIntake / 2)
+                    {
+                        elementBaseZ -= unit.HeightTotal * MM_TO_FEET - _maxHeightIntake / 2;
+                    }
+
+                    Element createdElement = CreateIntakeExtrusion(unit, currentX, elementBaseZ);
+
+                    if (createdElement != null)
+                    {
+                        intakeElements.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
+                    }
+
+                    foreach (var child in unit.Children)
+                    {
+                        if (!intakePositions.ContainsKey(child.Id))
+                            intakePositions[child.Id] = currentX;
+                    }
+
+                    currentX += unit.LengthTotal * MM_TO_FEET;
                 }
-
-                Element createdElement = CreateIntakeExtrusion(unit, currentX, elementBaseZ);
-
-                if (createdElement != null)
-                {
-                    intakeElements.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
-                }
-
-                foreach (var child in unit.Children)
-                {
-                    if (!intakePositions.ContainsKey(child.Id))
-                        intakePositions[child.Id] = currentX;
-                }
-
-                currentX += unit.LengthTotal * MM_TO_FEET;
-            }
-
-            if (!_isIntakeBelow && hasLeftCut)
-            {
-                currentX -= cutSize;
-            }
-
-            if (utilizer != null)
-            {
-                double elementBaseZ = intakeBaseZ;
-
-                if (!_isIntakeBelow && utilizer.HeightTotal * MM_TO_FEET > _maxHeightIntake / 2)
-                {
-                    elementBaseZ -= utilizer.HeightTotal * MM_TO_FEET - _maxHeightIntake / 2;
-                }
-
-                Element createdElement = CreateIntakeExtrusion(utilizer, currentX, elementBaseZ);
-
-                if (createdElement != null)
-                {
-                    intakeElements.Add(new Tuple<Element, VentUnitItem>(createdElement, utilizer));
-                }
-
-                foreach (var child in utilizer.Children)
-                {
-                    if (!intakePositions.ContainsKey(child.Id))
-                        intakePositions[child.Id] = currentX;
-                }
-
-                currentX += utilizer.LengthTotal * MM_TO_FEET;
-            }
-
-            if (!_isIntakeBelow && hasRightCut)
-            {
-                currentX -= cutSize;
-            }
-
-            foreach (var unit in rightElements)
-            {
-                double elementBaseZ = intakeBaseZ;
-
-                if (!_isIntakeBelow && unit.HeightTotal * MM_TO_FEET > _maxHeightIntake / 2)
-                {
-                    elementBaseZ -= unit.HeightTotal * MM_TO_FEET - _maxHeightIntake / 2;
-                }
-
-                Element createdElement = CreateIntakeExtrusion(unit, currentX, elementBaseZ);
-
-                if (createdElement != null)
-                {
-                    intakeElements.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
-                }
-
-                foreach (var child in unit.Children)
-                {
-                    if (!intakePositions.ContainsKey(child.Id))
-                        intakePositions[child.Id] = currentX;
-                }
-
-                currentX += unit.LengthTotal * MM_TO_FEET;
             }
 
             return intakePositions;
@@ -185,6 +216,7 @@ namespace FERCPlugin.Core.Models
 
         private void CreateExhaustGeometry(Dictionary<string, double> intakePositions, List<Tuple<Element, VentUnitItem>> exhaustElements, List<Tuple<Element, VentUnitItem>> intakeElements)
         {
+            double currentX = -_totalLengthExhaust / 2;
             double exhaustBaseZ = _isIntakeBelow ? _maxHeightIntake / 2 : -_maxHeightExhaust / 2;
             List<VentUnitItem> commonElements = new();
             List<VentUnitItem> exhaustLeft = new();
@@ -243,26 +275,42 @@ namespace FERCPlugin.Core.Models
                 offsetRight = intakeElements.Any(e => e.Item2.CutInfo.HasRightCut) ? intakeElements.Max(e => e.Item2.CutInfo.CutSize) : 0;
             }
 
-            double currentX = referenceX + offsetLeft;
-            for (int i = exhaustLeft.Count - 1; i >= 0; i--)
+            if(commonIndex > -1)
             {
-                currentX -= exhaustLeft[i].LengthTotal * MM_TO_FEET;
-                Element createdElement = CreateExhaustExtrusion(exhaustLeft[i], currentX, exhaustBaseZ);
-                if (createdElement != null)
+                currentX = referenceX + offsetLeft;
+
+                for (int i = exhaustLeft.Count - 1; i >= 0; i--)
                 {
-                    exhaustElements.Add(new Tuple<Element, VentUnitItem>(createdElement, exhaustLeft[i]));
+                    currentX -= exhaustLeft[i].LengthTotal * MM_TO_FEET;
+                    Element createdElement = CreateExhaustExtrusion(exhaustLeft[i], currentX, exhaustBaseZ);
+                    if (createdElement != null)
+                    {
+                        exhaustElements.Add(new Tuple<Element, VentUnitItem>(createdElement, exhaustLeft[i]));
+                    }
+                }
+
+                currentX = referenceX + totalCommonLength - offsetRight;
+                foreach (var unit in exhaustRight)
+                {
+                    Element createdElement = CreateExhaustExtrusion(unit, currentX, exhaustBaseZ);
+                    if (createdElement != null)
+                    {
+                        exhaustElements.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
+                    }
+                    currentX += unit.LengthTotal * MM_TO_FEET;
                 }
             }
-
-            currentX = referenceX + totalCommonLength - offsetRight;
-            foreach (var unit in exhaustRight)
+            else
             {
-                Element createdElement = CreateExhaustExtrusion(unit, currentX, exhaustBaseZ);
-                if (createdElement != null)
+                foreach (var unit in _exhaustUnits)
                 {
-                    exhaustElements.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
+                    Element createdElement = CreateExhaustExtrusion(unit, currentX, exhaustBaseZ);
+                    if (createdElement != null)
+                    {
+                        exhaustElements.Add(new Tuple<Element, VentUnitItem>(createdElement, unit));
+                    }
+                    currentX += unit.LengthTotal * MM_TO_FEET;
                 }
-                currentX += unit.LengthTotal * MM_TO_FEET;
             }
         }
 
@@ -436,7 +484,7 @@ namespace FERCPlugin.Core.Models
                 accumulatedLengthWindows += child.LengthTotal * MM_TO_FEET;
             }
 
-            if ((!isEndElement && _isIntakeBelow && !isExhaust) || (!isEndElement && !_isIntakeBelow && isExhaust))
+            if ((!isEndElement && _isIntakeBelow && !isExhaust && _frameHeight > 120) || (!isEndElement && !_isIntakeBelow && isExhaust && _frameHeight > 120))
             {
                 double frameMinZ = Math.Round(minZ - _frameHeight * MM_TO_FEET, 2);
                 double frameMaxZ = Math.Round(minZ, 2);
