@@ -19,8 +19,8 @@ public class VentUnitProcessor
         JArray intakeArray = rootObj.SelectToken("intake") as JArray;
         JArray exhaustArray = rootObj.SelectToken("exhaust") as JArray;
 
-        if (intakeArray != null) Intake = ParseVentUnitItems(intakeArray);
-        if (exhaustArray != null) Exhaust = ParseVentUnitItems(exhaustArray);
+        if (intakeArray != null && intakeArray.Count > 0) Intake = ParseVentUnitItems(intakeArray);
+        if (exhaustArray != null && exhaustArray.Count > 0) Exhaust = ParseVentUnitItems(exhaustArray);
 
         RemoveDuplicateItemsFromExhaust();
 

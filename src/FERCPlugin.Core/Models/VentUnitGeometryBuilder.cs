@@ -26,20 +26,39 @@ namespace FERCPlugin.Core.Models
             _isIntakeBelow = isIntakeBelow;
             _frameHeight = frameHeight;
 
-            _maxHeightIntake = GetMaxHeight(_intakeUnits);
-            _maxHeightExhaust = GetMaxHeight(_exhaustUnits);
-            _maxWidth = GetMaxWidth(_intakeUnits);
-            _totalLengthIntake = GetTotalLength(_intakeUnits);
-            _totalLengthExhaust = GetTotalLength(_exhaustUnits);
+            if (_intakeUnits.Count > 0)
+            {
+                _maxHeightIntake = GetMaxHeight(_intakeUnits);
+                _totalLengthIntake = GetTotalLength(_intakeUnits);
+            }
+            if (_exhaustUnits.Count > 0)
+            {
+                _maxHeightExhaust = GetMaxHeight(_exhaustUnits);
+                _totalLengthExhaust = GetTotalLength(_exhaustUnits);
+            }
+            _maxWidth = GetMaxWidth(_intakeUnits, _exhaustUnits);
         }
 
         private static double GetMaxHeight(List<VentUnitItem> units) =>
     units.Where(unit => !unit.Category.Contains("recirculator") && !unit.Category.Contains("utilization"))
          .Max(unit => unit.HeightTotal) * MM_TO_FEET;
 
-        private static double GetMaxWidth(List<VentUnitItem> units) =>
-            units.Where(unit => !unit.Category.Contains("recirculator") && !unit.Category.Contains("utilization"))
-                 .Max(unit => unit.WidthTotal) * MM_TO_FEET;
+        private static double GetMaxWidth(List<VentUnitItem> intakeUnits, List<VentUnitItem> exhaustUnits)
+        {
+            double maxWidthIntake = intakeUnits
+                .Where(unit => !unit.Category.Contains("recirculator") && !unit.Category.Contains("utilization"))
+                .Select(unit => unit.WidthTotal)
+                .DefaultIfEmpty(0)
+                .Max() * MM_TO_FEET;
+
+            double maxWidthExhaust = exhaustUnits
+                .Where(unit => !unit.Category.Contains("recirculator") && !unit.Category.Contains("utilization"))
+                .Select(unit => unit.WidthTotal)
+                .DefaultIfEmpty(0)
+                .Max() * MM_TO_FEET;
+
+            return Math.Max(maxWidthIntake, maxWidthExhaust);
+        }
 
         private static double GetTotalLength(List<VentUnitItem> units) =>
             units.Sum(unit => unit.LengthTotal) * MM_TO_FEET;
@@ -53,11 +72,19 @@ namespace FERCPlugin.Core.Models
             {
                 tx.Start();
 
-                Dictionary<string, double> intakePositions = _isIntakeBelow
-                    ? CreateIntakeGeometry(intakeElements, -_maxHeightIntake / 2)
-                    : CreateIntakeGeometry(intakeElements, _maxHeightExhaust);
+                Dictionary<string, double> intakePositions = new();
 
-                CreateExhaustGeometry(intakePositions, exhaustElements, intakeElements);
+                if (_intakeUnits.Count > 0)
+                {
+                    intakePositions = _isIntakeBelow
+                                    ? CreateIntakeGeometry(intakeElements, -_maxHeightIntake / 2)
+                                    : CreateIntakeGeometry(intakeElements, _maxHeightExhaust);
+                }
+
+                if (_exhaustUnits.Count > 0)
+                {
+                    CreateExhaustGeometry(intakePositions, exhaustElements, intakeElements);
+                }
 
                 tx.Commit();
             }
@@ -269,7 +296,7 @@ namespace FERCPlugin.Core.Models
             double offsetLeft = 0;
             double offsetRight = 0;
 
-            if (_isIntakeBelow)
+            if (_isIntakeBelow && intakeElements.Count > 0)
             {
                 offsetLeft = intakeElements.Any(e => e.Item2.CutInfo.HasLeftCut) ? intakeElements.Max(e => e.Item2.CutInfo.CutSize) : 0;
                 offsetRight = intakeElements.Any(e => e.Item2.CutInfo.HasRightCut) ? intakeElements.Max(e => e.Item2.CutInfo.CutSize) : 0;
@@ -344,12 +371,21 @@ namespace FERCPlugin.Core.Models
             {
                 double heightOffset = (_isIntakeBelow ? _maxHeightIntake : _maxHeightExhaust) - height;
 
-                if (_isIntakeBelow)
+                if (_isIntakeBelow && _intakeUnits.Count > 0)
                 {
                     minZ = isExhaust ? baseZ + heightOffset / 2 : -_maxHeightIntake / 2 + heightOffset / 2;
                 }
-                else
+                if (_isIntakeBelow && _intakeUnits.Count == 0)
                 {
+                    minZ = isExhaust ? baseZ + (_maxHeightExhaust - height) / 2 : -_maxHeightIntake / 2 + heightOffset / 2;
+                }
+                if (!_isIntakeBelow && _exhaustUnits.Count > 0)
+                {
+                    minZ = isExhaust ? baseZ + heightOffset / 2 : baseZ - heightOffset / 2;
+                }
+                if (!_isIntakeBelow && _exhaustUnits.Count == 0)
+                {
+                    heightOffset = _maxHeightIntake - height;
                     minZ = isExhaust ? baseZ + heightOffset / 2 : baseZ - heightOffset / 2;
                 }
             }
@@ -484,7 +520,8 @@ namespace FERCPlugin.Core.Models
                 accumulatedLengthWindows += child.LengthTotal * MM_TO_FEET;
             }
 
-            if ((!isEndElement && _isIntakeBelow && !isExhaust && _frameHeight >= 120) || (!isEndElement && !_isIntakeBelow && isExhaust && _frameHeight >= 120))
+            if ((!isEndElement && _isIntakeBelow && !isExhaust && _frameHeight >= 120) || (!isEndElement && !_isIntakeBelow && isExhaust && _frameHeight >= 120) ||
+                (!isEndElement && !_isIntakeBelow && !isExhaust && _frameHeight >= 120 && _exhaustUnits.Count == 0) || (!isEndElement && _isIntakeBelow && isExhaust && _frameHeight >= 120 && _intakeUnits.Count == 0))
             {
                 CreateFrameExtrusion(unit, minX, maxX, minZ);
             }
@@ -516,7 +553,23 @@ namespace FERCPlugin.Core.Models
             CurveArray holeLeftCurves = new CurveArray();
             CurveArray holeRightCurves = new CurveArray();
 
-            if (unit.LengthTotal < 500)
+            if (unit.LengthTotal < 200)
+            {
+                XYZ rc1 = new XYZ(frameMidX - 0.25, 0, frameMidZ);
+                XYZ rc2 = new XYZ(frameMidX - 0.15, 0, frameMidZ - 0.1);
+                XYZ rc3 = new XYZ(frameMidX + 0.15, 0, frameMidZ - 0.1);
+                XYZ rc4 = new XYZ(frameMidX + 0.25, 0, frameMidZ);
+                XYZ rc5 = new XYZ(frameMidX + 0.15, 0, frameMidZ + 0.1);
+                XYZ rc6 = new XYZ(frameMidX - 0.15, 0, frameMidZ + 0.1);
+
+                holeMidCurves.Append(Line.CreateBound(rc1, rc2));
+                holeMidCurves.Append(Line.CreateBound(rc2, rc3));
+                holeMidCurves.Append(Line.CreateBound(rc3, rc4));
+                holeMidCurves.Append(Line.CreateBound(rc4, rc5));
+                holeMidCurves.Append(Line.CreateBound(rc5, rc6));
+                holeMidCurves.Append(Line.CreateBound(rc6, rc1));
+            }
+            if (unit.LengthTotal >= 200 && unit.LengthTotal < 500)
             {
                 XYZ rc1 = new XYZ(frameMidX - 0.35, 0, frameMidZ);
                 XYZ rc2 = new XYZ(frameMidX - 0.25, 0, frameMidZ - 0.1);
@@ -532,7 +585,7 @@ namespace FERCPlugin.Core.Models
                 holeMidCurves.Append(Line.CreateBound(rc5, rc6));
                 holeMidCurves.Append(Line.CreateBound(rc6, rc1));
             }
-            else
+            if (unit.LengthTotal >= 500)
             {
                 XYZ rl1 = new XYZ(roundedMinX + 0.2, 0, frameMidZ);
                 XYZ rl2 = new XYZ(roundedMinX + 0.3, 0, frameMidZ - 0.1);

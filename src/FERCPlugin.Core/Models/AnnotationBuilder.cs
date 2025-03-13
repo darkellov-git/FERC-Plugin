@@ -12,6 +12,7 @@ namespace FERCPlugin.Core.Models
         private readonly bool _isIntakeBelow;
         private readonly View _frontView;
         private static double _halfHeightIntake;
+        private static double _halfHeightExhaust;
 
         private const double MM_TO_FEET = 0.00328084;
 
@@ -30,6 +31,7 @@ namespace FERCPlugin.Core.Models
             _hasUtilizationCross = hasUtilizationCross;
             _isIntakeBelow = isIntakeBelow;
             _halfHeightIntake = maxHeightIntake / 2;
+            _halfHeightExhaust = maxHeightExhaust / 2;
             _frontView = GetFrontView();
         }
 
@@ -42,7 +44,7 @@ namespace FERCPlugin.Core.Models
             }
 
             CreateHorizontalDimensions(_intakeElements, _isIntakeBelow ? -_halfHeightIntake - 1 : _halfHeightIntake + 1, false);
-            CreateHorizontalDimensions(_exhaustElements, _isIntakeBelow ? _halfHeightIntake + 1 : -_halfHeightIntake - 1, true);
+            CreateHorizontalDimensions(_exhaustElements, _isIntakeBelow || _intakeElements.Count == 0 ? _halfHeightExhaust + 1 : -_halfHeightExhaust - 1, true);
             CreateVerticalDimensions(_intakeElements, _exhaustElements);
         }
 
@@ -102,7 +104,8 @@ namespace FERCPlugin.Core.Models
                         _doc.FamilyCreate.NewDimension(_frontView, dimLine, refArray);
                     }
                 }
-                else
+
+                if (isExhaust & _intakeElements.Count > 0)
                 {
                     for (int i = 0; i < leftFaces.Count; i++)
                     {
@@ -137,12 +140,55 @@ namespace FERCPlugin.Core.Models
                     }
                 }
 
+                if (isExhaust & _intakeElements.Count == 0)
+                {
+                    for (int i = 0; i < leftFaces.Count; i++)
+                    {
+                        ReferenceArray singleRefArray = new ReferenceArray();
+                        singleRefArray.Append(leftFaces[i]);
+                        singleRefArray.Append(rightFaces[i]);
+
+                        XYZ dimLinePosition = GetFaceCenter(leftFaces[i]) + new XYZ(0, 0, offset + _halfHeightIntake);
+                        Line dimLine = Line.CreateBound(dimLinePosition, dimLinePosition + XYZ.BasisX * 10);
+
+                        _doc.FamilyCreate.NewDimension(_frontView, dimLine, singleRefArray);
+                    }
+
+                    for (int i = 0; i < rightFaces.Count - 1; i++)
+                    {
+                        XYZ rightFacePos = GetFaceCenter(rightFaces[i]);
+                        XYZ leftFaceNextPos = GetFaceCenter(leftFaces[i + 1]);
+
+                        double gap = leftFaceNextPos.X - rightFacePos.X;
+
+                        if (gap > 0.1)
+                        {
+                            ReferenceArray gapRefArray = new ReferenceArray();
+                            gapRefArray.Append(rightFaces[i]);
+                            gapRefArray.Append(leftFaces[i + 1]);
+
+                            XYZ dimLinePosition = rightFacePos + new XYZ(0, 0, offset + _halfHeightIntake);
+                            Line dimLine = Line.CreateBound(dimLinePosition, dimLinePosition + XYZ.BasisX * 10);
+
+                            _doc.FamilyCreate.NewDimension(_frontView, dimLine, gapRefArray);
+                        }
+                    }
+                }
+
                 ReferenceArray refArrayGeneral = new ReferenceArray();
                 refArrayGeneral.Append(leftFaces.First());
                 refArrayGeneral.Append(rightFaces.Last());
+                double offsetAdjustment = 0;
+                XYZ dimLinePositionGeneral = new XYZ(0, 0, 0);
 
-                double offsetAdjustment = (isExhaust == _isIntakeBelow) ? offset + 1 : offset - 1;
-                XYZ dimLinePositionGeneral = GetFaceCenter(leftFaces.First()) + new XYZ(0, 0, offsetAdjustment);
+
+                offsetAdjustment = (isExhaust == _isIntakeBelow) ? offset + 1 : offset - 1;
+                dimLinePositionGeneral = GetFaceCenter(leftFaces.First()) + new XYZ(0, 0, offsetAdjustment);
+
+                if (isExhaust && _intakeElements.Count == 0)
+                {
+                    dimLinePositionGeneral = GetFaceCenter(leftFaces.First()) + new XYZ(0, 0, offset + _halfHeightIntake + 1);
+                }
 
                 Line dimLineGeneral = Line.CreateBound(dimLinePositionGeneral, dimLinePositionGeneral + XYZ.BasisX * 10);
 
@@ -341,8 +387,8 @@ namespace FERCPlugin.Core.Models
             if (faces.Count == 0) return null;
 
             return getMax
-                ? faces.OrderBy(f => GetFaceCenter(f).Z).LastOrDefault() 
-                : faces.OrderBy(f => GetFaceCenter(f).Z).FirstOrDefault(); 
+                ? faces.OrderBy(f => GetFaceCenter(f).Z).LastOrDefault()
+                : faces.OrderBy(f => GetFaceCenter(f).Z).FirstOrDefault();
         }
 
         private List<Reference> GetParallelFaces(Element element, XYZ normal)
