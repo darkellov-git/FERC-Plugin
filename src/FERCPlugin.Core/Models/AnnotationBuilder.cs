@@ -507,6 +507,10 @@ namespace FERCPlugin.Core.Models
                     createdRegions.Add(regionInstance);
                 }
 
+                frontView.DisplayStyle = DisplayStyle.FlatColors;
+
+                frontView.DetailLevel = ViewDetailLevel.Fine;
+
                 tx.Commit();
             }
         }
