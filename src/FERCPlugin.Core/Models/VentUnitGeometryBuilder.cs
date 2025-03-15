@@ -281,7 +281,6 @@ namespace FERCPlugin.Core.Models
 
                         commonElements.Add(unit);
                         isCommonElement = true;
-                        break;
                     }
                 }
 
@@ -313,6 +312,24 @@ namespace FERCPlugin.Core.Models
                     if (createdElement != null)
                     {
                         exhaustElements.Add(new Tuple<Element, VentUnitItem>(createdElement, exhaustLeft[i]));
+                    }
+                }
+
+                if(!_isIntakeBelow)
+                {
+                    double currentCommonX = referenceX;
+                    foreach (var commonUnit in commonElements)
+                    {
+                        var matchingIntakeElement = intakeElements.FirstOrDefault(e => e.Item2.Id.Split('-').First() == commonUnit.Id.Split('-').First());
+                        double length = matchingIntakeElement != null ? matchingIntakeElement.Item2.LengthTotal * MM_TO_FEET : commonUnit.LengthTotal * MM_TO_FEET;
+
+                        double minX = currentCommonX;
+                        double maxX = minX + length;
+                        double minZ = exhaustBaseZ;
+
+                        CreateFrameExtrusion(matchingIntakeElement.Item2, minX, maxX, minZ);
+
+                        currentCommonX += length;
                     }
                 }
 
@@ -631,8 +648,6 @@ namespace FERCPlugin.Core.Models
 
             _doc.FamilyCreate.NewExtrusion(true, frameCurveArrArray, frameSketchPlane, _maxWidth);
         }
-
-
 
         private void CreatePipeExtrusion(double startX, double baseZ, VentUnitPipe pipe)
         {
