@@ -1,5 +1,7 @@
 ﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
+using System.Drawing;
 
 namespace FERCPlugin.Core.Models
 {
@@ -46,6 +48,8 @@ namespace FERCPlugin.Core.Models
             CreateHorizontalDimensions(_intakeElements, _isIntakeBelow ? -_halfHeightIntake - 1 : _halfHeightIntake + 1, false);
             CreateHorizontalDimensions(_exhaustElements, _isIntakeBelow || _intakeElements.Count == 0 ? _halfHeightExhaust + 1 : -_halfHeightExhaust - 1, true);
             CreateVerticalDimensions(_intakeElements, _exhaustElements);
+
+            CreateFilledRegionsForDisplayElements();
         }
 
         private View GetFrontView()
@@ -261,9 +265,11 @@ namespace FERCPlugin.Core.Models
 
         private Tuple<Reference, XYZ> ProcessVerticalAnnotations(List<Tuple<Element, VentUnitItem>> elements, bool isIntake)
         {
-            if (!elements.Any()) return null;
+            List<Tuple<Element, VentUnitItem>> elementsCopy = DeepCopyElements(elements);
 
-            var leftmostElement = elements.OrderBy(e => GetFaceCenter(GetExtremeFace(e.Item1, false, XYZ.BasisX)).X).FirstOrDefault();
+            if (!elementsCopy.Any()) return null;
+
+            var leftmostElement = elementsCopy.OrderBy(e => GetFaceCenter(GetExtremeFace(e.Item1, false, XYZ.BasisX)).X).FirstOrDefault();
             Reference leftmostFace = leftmostElement != null ? GetExtremeFace(leftmostElement.Item1, false, XYZ.BasisX) : null;
 
             if (leftmostFace == null)
@@ -274,14 +280,14 @@ namespace FERCPlugin.Core.Models
 
             if (isIntake)
             {
-                var highestElement = elements.OrderByDescending(e => e.Item2.HeightTotal).FirstOrDefault();
+                var highestElement = elementsCopy.OrderByDescending(e => e.Item2.HeightTotal).FirstOrDefault();
                 if (highestElement != null)
                 {
-                    elements.Remove(highestElement);
+                    elementsCopy.Remove(highestElement);
                 }
             }
 
-            var elementWithMaxZDiff = elements
+            var elementWithMaxZDiff = elementsCopy
                 .Select(e =>
                 {
                     var topFace = GetExtremeFace(e.Item1, true, XYZ.BasisZ);
@@ -312,7 +318,7 @@ namespace FERCPlugin.Core.Models
                 targetFace = (_isIntakeBelow == isIntake) ? elementWithMaxZDiff.BottomFace : elementWithMaxZDiff.TopFace;
             }
 
-            var flexibleDamperElement = elements.FirstOrDefault(e => e.Item2.Children.Any(child => child.Type.Contains("flexibleDamper")));
+            var flexibleDamperElement = elementsCopy.FirstOrDefault(e => e.Item2.Children.Any(child => child.Type.Contains("flexibleDamper")));
             if (flexibleDamperElement != null)
             {
                 Options geomOptions = new Options { ComputeReferences = true };
@@ -360,7 +366,7 @@ namespace FERCPlugin.Core.Models
             }
             else
             {
-                var elementWithMinZDiff = elements
+                var elementWithMinZDiff = elementsCopy
                     .Select(e => new
                     {
                         Element = e.Item1,
@@ -453,6 +459,211 @@ namespace FERCPlugin.Core.Models
             refArray.Append(ref2);
 
             _doc.FamilyCreate.NewDimension(_frontView, dimLine, refArray);
+        }
+
+        private void CreateFilledRegionsForDisplayElements()
+        {
+            using (Transaction tx = new Transaction(_doc, "Create Filled Regions"))
+            {
+                tx.Start();
+
+                View frontView = GetFrontView();
+
+                FamilySymbol filledRegionSymbol = GetOrLoadFilledRegionFamily();
+                if (filledRegionSymbol == null)
+                {
+                    TaskDialog.Show("Ошибка", "Не удалось загрузить семейство FilledRegion.rfa");
+                    return;
+                }
+
+                List<Tuple<Element, VentUnitItem>> allElements = _intakeElements.Concat(_exhaustElements).ToList();
+                List<FamilyInstance> createdRegions = new List<FamilyInstance>();
+
+                foreach (var (element, ventUnitItem) in allElements)
+                {
+                    if (ventUnitItem.DisplayIndex == -1) continue;
+
+                    List<Reference> yAlignedFaces = GetParallelFaces(element, XYZ.BasisY);
+                    if (!yAlignedFaces.Any()) continue;
+
+                    Reference targetFaceRef = yAlignedFaces.Count > 1 ? yAlignedFaces[1] : yAlignedFaces[0];
+                    Face targetFace = element.GetGeometryObjectFromReference(targetFaceRef) as Face;
+                    if (targetFace == null) continue;
+
+                    List<CurveLoop> contours = targetFace.GetEdgesAsCurveLoops().ToList();
+                    if (contours.Count == 0) continue;
+
+                    XYZ centerPoint = GetCentroidPoint(contours);
+                    XYZ topLeftPoint = GetTopLeftPoint(contours);
+                    double width = ventUnitItem.LengthTotal;
+                    double height = ventUnitItem.HeightTotal;
+
+                    FamilyInstance regionInstance = InsertFilledRegion(filledRegionSymbol, centerPoint, targetFaceRef);
+
+                    SetFilledRegionSize(regionInstance, width, height);
+
+                    AddDisplayIndexText(topLeftPoint, ventUnitItem.DisplayIndex ?? -1);
+
+                    createdRegions.Add(regionInstance);
+                }
+
+                tx.Commit();
+            }
+        }
+
+        private XYZ GetTopLeftPoint(List<CurveLoop> contours)
+        {
+            if (contours == null || contours.Count == 0)
+                return XYZ.Zero;
+
+            return contours
+                .SelectMany(loop => loop)
+                .Select(curve => curve.GetEndPoint(0))
+                .OrderBy(p => p.X) 
+                .ThenByDescending(p => p.Z)
+                .FirstOrDefault() ?? XYZ.Zero;
+        }
+
+        private void AddDisplayIndexText(XYZ location, int displayIndex)
+        {
+            TextNoteType textType = GetOrCreateTextNoteType();
+
+            TextNoteOptions options = new TextNoteOptions
+            {
+                TypeId = textType.Id
+            };
+
+            XYZ newLocation = new XYZ(location.X + 0.25, location.Y, location.Z - 0.3);
+
+            TextNote.Create(_doc, _frontView.Id, newLocation, displayIndex.ToString(), options);
+        }
+
+        private TextNoteType GetOrCreateTextNoteType()
+        {
+            TextNoteType textNoteType = new FilteredElementCollector(_doc)
+                .OfClass(typeof(TextNoteType))
+                .Cast<TextNoteType>()
+                .FirstOrDefault(t => t.Name == "3 mm");
+
+            if (textNoteType == null)
+            {
+                TextNoteType defaultTextType = new FilteredElementCollector(_doc)
+                    .OfClass(typeof(TextNoteType))
+                    .Cast<TextNoteType>()
+                    .FirstOrDefault();
+
+                if (defaultTextType != null)
+                {
+                    textNoteType = defaultTextType.Duplicate("3 mm") as TextNoteType;
+                    if (textNoteType != null)
+                    {
+                        textNoteType.LookupParameter("Text Size")?.Set(3 * MM_TO_FEET);
+                        textNoteType.LookupParameter("Bold")?.Set(1);
+                        textNoteType.LookupParameter("Color")?.Set(0 | 0 | 255);
+                        textNoteType.LookupParameter("Background")?.Set(1);
+                        textNoteType.LookupParameter("Show Border")?.Set(1);
+                    }
+                }
+            }
+            return textNoteType;
+        }
+
+        private XYZ GetCentroidPoint(List<CurveLoop> contours)
+        {
+            List<XYZ> points = contours
+                .SelectMany(loop => loop)
+                .SelectMany(curve => new List<XYZ> { curve.GetEndPoint(0), curve.GetEndPoint(1) })
+                .Distinct()
+                .ToList();
+
+            if (!points.Any()) return XYZ.Zero;
+
+            double avgX = points.Average(p => p.X);
+            double avgY = points.Average(p => p.Y);
+            double avgZ = points.Average(p => p.Z);
+
+            return new XYZ(avgX, avgY, avgZ);
+        }
+
+        private FamilySymbol GetOrLoadFilledRegionFamily()
+        {
+            FamilySymbol symbol = new FilteredElementCollector(_doc)
+                .OfClass(typeof(FamilySymbol))
+                .Cast<FamilySymbol>()
+                .FirstOrDefault(s => s.Family.Name == "FilledRegion");
+
+            if (symbol == null)
+            {
+                string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+
+                string familyPath = Path.Combine(appDataPath, "Autodesk", "Revit", "Addins", "2025", "FERC", "FilledRegion.rfa");
+
+                if (!File.Exists(familyPath))
+                {
+                    TaskDialog.Show("Ошибка", $"Файл семейства не найден: {familyPath}");
+                    return null;
+                }
+
+                Family loadedFamily;
+                if (_doc.LoadFamily(familyPath, out loadedFamily))
+                {
+                    ICollection<ElementId> symbolIds = loadedFamily.GetFamilySymbolIds();
+                    if (symbolIds.Any())
+                    {
+                        symbol = _doc.GetElement(symbolIds.First()) as FamilySymbol;
+                    }
+                }
+            }
+            return symbol;
+        }
+
+        private FamilyInstance InsertFilledRegion(FamilySymbol symbol, XYZ location, Reference targetFaceRef)
+        {
+            if (!symbol.IsActive)
+                symbol.Activate();
+
+            return _doc.FamilyCreate.NewFamilyInstance(targetFaceRef, location, XYZ.BasisX, symbol);
+        }
+
+        private void SetFilledRegionSize(FamilyInstance instance, double width, double height)
+        {
+            Parameter widthParam = instance.LookupParameter("Width");
+            Parameter heightParam = instance.LookupParameter("Height");
+            if (widthParam != null) widthParam.Set(width * MM_TO_FEET);
+            if (heightParam != null) heightParam.Set(height * MM_TO_FEET);
+        }
+
+        private List<Tuple<Element, VentUnitItem>> DeepCopyElements(List<Tuple<Element, VentUnitItem>> elements)
+        {
+            return elements.Select(t => Tuple.Create(t.Item1, new VentUnitItem
+            {
+                Id = t.Item2.Id,
+                Category = t.Item2.Category,
+                DisplayIndex = t.Item2.DisplayIndex,
+                LengthTotal = t.Item2.LengthTotal,
+                HeightTotal = t.Item2.HeightTotal,
+                WidthTotal = t.Item2.WidthTotal,
+                TopPanels = t.Item2.TopPanels.Select(p => new VentUnitPanel { SizeY = p.SizeY, SizesX = new List<double>(p.SizesX) }).ToList(),
+                FloorPanels = t.Item2.FloorPanels.Select(p => new VentUnitPanel { SizeY = p.SizeY, SizesX = new List<double>(p.SizesX) }).ToList(),
+                BackPanels = t.Item2.BackPanels.Select(p => new VentUnitPanel { SizeY = p.SizeY, SizesX = new List<double>(p.SizesX) }).ToList(),
+                Children = t.Item2.Children.Select(c => new VentUnitChild
+                {
+                    Id = c.Id,
+                    Type = c.Type,
+                    LengthTotal = c.LengthTotal,
+                    HeightTotal = c.HeightTotal,
+                    WidthTotal = c.WidthTotal,
+                    ServicePanels = c.ServicePanels.Select(p => new VentUnitPanel { SizeY = p.SizeY, SizesX = new List<double>(p.SizesX) }).ToList(),
+                    Pipes = c.Pipes.Select(p => new VentUnitPipe { X = p.X, Y = p.Y, D = p.D }).ToList(),
+                    Window = c.Window != null ? new VentUnitWindow { X = c.Window.X, Y = c.Window.Y, D = c.Window.D } : null
+                }).ToList(),
+                CutInfo = new UtilizerUnitCutInfo
+                {
+                    HasLeftCut = t.Item2.CutInfo.HasLeftCut,
+                    HasRightCut = t.Item2.CutInfo.HasRightCut,
+                    CutSize = t.Item2.CutInfo.CutSize
+                }
+            })).ToList();
         }
     }
 }

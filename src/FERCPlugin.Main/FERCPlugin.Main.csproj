@@ -37,11 +37,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="Resources\Families\FilledRegion.rfa" />
     <None Remove="Resources\Icons\Icon_32.png" />
     <None Remove="Resources\testCommand.png" />
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Resources\Families\FilledRegion.rfa">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
     <Resource Include="Resources\Icons\Icon_32.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Resource>

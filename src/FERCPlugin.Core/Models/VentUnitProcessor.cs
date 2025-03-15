@@ -37,9 +37,13 @@ public class VentUnitProcessor
         {
             VentUnitItem item = obj.ToObject<VentUnitItem>();
 
-            if (obj["displayIndex"] == null || !obj["displayIndex"].HasValues)
+            if (!obj.ContainsKey("displayIndex") || obj["displayIndex"].Type == JTokenType.Null)
             {
                 item.DisplayIndex = -1;
+            }
+            else
+            {
+                item.DisplayIndex = obj["displayIndex"].Value<int?>();
             }
 
             if (obj.ContainsKey("children") && obj["children"] is JArray childrenArray)

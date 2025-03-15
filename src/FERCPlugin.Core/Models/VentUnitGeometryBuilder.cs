@@ -315,7 +315,7 @@ namespace FERCPlugin.Core.Models
                     }
                 }
 
-                if(!_isIntakeBelow)
+                if (!_isIntakeBelow)
                 {
                     double currentCommonX = referenceX;
                     foreach (var commonUnit in commonElements)
@@ -509,6 +509,12 @@ namespace FERCPlugin.Core.Models
             extrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(offset);
             extrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(width + offset);
 
+            Material orangeMaterial = CreateOrangeMaterial();
+            if (orangeMaterial != null)
+            {
+                extrusion.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM).Set(orangeMaterial.Id);
+            }
+
             if (unit.Category == "block" || unit.Category == "utilization_cross")
             {
                 double accumulatedLength = 0;
@@ -545,6 +551,33 @@ namespace FERCPlugin.Core.Models
 
             return extrusion;
         }
+
+        private Material CreateOrangeMaterial()
+        {
+
+            Material existingMaterial = new FilteredElementCollector(_doc)
+                .OfClass(typeof(Material))
+                .Cast<Material>()
+                .FirstOrDefault(m => m.Name == "OrangeMaterial");
+
+            if (existingMaterial != null)
+            {
+                return existingMaterial;
+            }
+
+            Material newMaterial = _doc.GetElement(Material.Create(_doc, "OrangeMaterial")) as Material;
+
+            if (newMaterial != null)
+            {
+                newMaterial.Color = new Color(255, 165, 0);
+                newMaterial.Transparency = 0; 
+                newMaterial.Shininess = 0; 
+                newMaterial.Smoothness = 0; 
+            }
+
+            return newMaterial;
+        }
+
 
         private void CreateFrameExtrusion(VentUnitItem unit, double minX, double maxX, double minZ)
         {
