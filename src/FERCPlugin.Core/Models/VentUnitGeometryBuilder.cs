@@ -1,4 +1,5 @@
 ﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
 
 namespace FERCPlugin.Core.Models
 {
@@ -63,7 +64,7 @@ namespace FERCPlugin.Core.Models
         private static double GetTotalLength(List<VentUnitItem> units) =>
             units.Sum(unit => unit.LengthTotal) * MM_TO_FEET;
 
-        public (List<Tuple<Element, VentUnitItem>>, List<Tuple<Element, VentUnitItem>>, double, double) BuildGeometry()
+        public (List<Tuple<Element, VentUnitItem>>, List<Tuple<Element, VentUnitItem>>, double, double, double) BuildGeometry()
         {
             List<Tuple<Element, VentUnitItem>> intakeElements = new();
             List<Tuple<Element, VentUnitItem>> exhaustElements = new();
@@ -89,7 +90,7 @@ namespace FERCPlugin.Core.Models
                 tx.Commit();
             }
 
-            return (intakeElements, exhaustElements, _maxHeightIntake, _maxHeightExhaust);
+            return (intakeElements, exhaustElements, _maxHeightIntake, _maxHeightExhaust, _maxWidth);
         }
 
         private Dictionary<string, double> CreateIntakeGeometry(List<Tuple<Element, VentUnitItem>> intakeElements, double intakeBaseZ)
@@ -509,11 +510,21 @@ namespace FERCPlugin.Core.Models
             extrusion.get_Parameter(BuiltInParameter.EXTRUSION_START_PARAM).Set(offset);
             extrusion.get_Parameter(BuiltInParameter.EXTRUSION_END_PARAM).Set(width + offset);
 
-            Material orangeMaterial = CreateOrangeMaterial();
-            if (orangeMaterial != null)
+            if (!isEndElement)
             {
-                extrusion.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM).Set(orangeMaterial.Id);
+                Material orangeMaterial = CreateOrangeMaterial();
+                if (orangeMaterial != null)
+                {
+                    extrusion.get_Parameter(BuiltInParameter.MATERIAL_ID_PARAM).Set(orangeMaterial.Id);
+                }
+
+                Category redLinesSubcategory = GetOrCreateRedLinesSubcategory();
+                if (redLinesSubcategory != null)
+                {
+                    extrusion.Subcategory = redLinesSubcategory;
+                }
             }
+
 
             if (unit.Category == "block" || unit.Category == "utilization_cross")
             {
@@ -570,12 +581,37 @@ namespace FERCPlugin.Core.Models
             if (newMaterial != null)
             {
                 newMaterial.Color = new Color(255, 165, 0);
-                newMaterial.Transparency = 0; 
-                newMaterial.Shininess = 0; 
-                newMaterial.Smoothness = 0; 
+                newMaterial.Transparency = 0;
+                newMaterial.Shininess = 0;
+                newMaterial.Smoothness = 0;
             }
 
             return newMaterial;
+        }
+
+        private Category GetOrCreateRedLinesSubcategory()
+        {
+            Category mechCategory = _doc.Settings.Categories.get_Item(BuiltInCategory.OST_MechanicalEquipment);
+
+            if (mechCategory == null)
+            {
+                TaskDialog.Show("Ошибка", "Категория 'Mechanical Equipment' не найдена.");
+                return null;
+            }
+
+            Category redLinesSubcategory = mechCategory.SubCategories
+                .Cast<Category>()
+                .FirstOrDefault(sub => sub.Name.Equals("RedLines", StringComparison.OrdinalIgnoreCase));
+
+            redLinesSubcategory ??= _doc.Settings.Categories.NewSubcategory(mechCategory, "RedLines");
+
+            if (redLinesSubcategory != null)
+            {
+                redLinesSubcategory.LineColor = new Color(255, 0, 0);
+                redLinesSubcategory.SetLineWeight(4, GraphicsStyleType.Projection);
+            }
+
+            return redLinesSubcategory;
         }
 
 

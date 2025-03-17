@@ -1,7 +1,5 @@
 ﻿using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
-using System.Drawing;
 
 namespace FERCPlugin.Core.Models
 {
@@ -13,8 +11,10 @@ namespace FERCPlugin.Core.Models
         private readonly bool _hasUtilizationCross;
         private readonly bool _isIntakeBelow;
         private readonly View _frontView;
+        private readonly View _refView;
         private static double _halfHeightIntake;
         private static double _halfHeightExhaust;
+        private static double _halfmaxWidth;
 
         private const double MM_TO_FEET = 0.00328084;
 
@@ -25,7 +25,8 @@ namespace FERCPlugin.Core.Models
             bool hasUtilizationCross,
             bool isIntakeBelow,
             double maxHeightIntake,
-            double maxHeightExhaust)
+            double maxHeightExhaust,
+            double maxWidth)
         {
             _doc = doc;
             _intakeElements = intakeElements;
@@ -34,34 +35,191 @@ namespace FERCPlugin.Core.Models
             _isIntakeBelow = isIntakeBelow;
             _halfHeightIntake = maxHeightIntake / 2;
             _halfHeightExhaust = maxHeightExhaust / 2;
-            _frontView = GetFrontView();
+            _halfmaxWidth = maxWidth / 2;
+            _frontView = GetView("Front");
+            _refView = GetView("Ref. Level");
         }
 
         public void AddAnnotations()
         {
-            if (_frontView == null)
+            if (_frontView == null || _refView == null)
             {
-                TaskDialog.Show("Ошибка", "Вид Front не найден.");
+                TaskDialog.Show("Ошибка", "Вид Front & Ref. Level не найден.");
                 return;
             }
 
-            CreateHorizontalDimensions(_intakeElements, _isIntakeBelow ? -_halfHeightIntake - 1 : _halfHeightIntake + 1, false);
-            CreateHorizontalDimensions(_exhaustElements, _isIntakeBelow || _intakeElements.Count == 0 ? _halfHeightExhaust + 1 : -_halfHeightExhaust - 1, true);
+            XYZ offset = new XYZ(0, 0, 0);
+
+            CreateHorizontalDimensions(_intakeElements, _isIntakeBelow ? new XYZ(0, 0, -_halfHeightIntake - 1) : new XYZ(0, 0, _halfHeightIntake + 1), false, _frontView);
+            CreateHorizontalDimensions(_exhaustElements, _isIntakeBelow || _intakeElements.Count == 0 ? new XYZ(0, 0, _halfHeightExhaust + 1) : new XYZ(0, 0, -_halfHeightExhaust - 1), true, _frontView);
             CreateVerticalDimensions(_intakeElements, _exhaustElements);
 
-            CreateFilledRegionsForDisplayElements();
+            if (_isIntakeBelow || _intakeElements.Count == 0)
+            {
+                CreateHorizontalDimensions(_exhaustElements, new XYZ(0, _halfmaxWidth + 1, 0), true, _refView);
+                CreateTopVerticalDimensions(_exhaustElements);
+            }
+            if (!_isIntakeBelow || _exhaustElements.Count == 0)
+            {
+                CreateHorizontalDimensions(_intakeElements, new XYZ(0, _halfmaxWidth + 1, 0), false, _refView);
+                CreateTopVerticalDimensions(_intakeElements);
+            }
+
+            CreateTextForDisplayElements();
         }
 
-        private View GetFrontView()
+        private View GetView(string viewName)
         {
             return new FilteredElementCollector(_doc)
                 .OfClass(typeof(View))
                 .Cast<View>()
-                .FirstOrDefault(v => v.Name.Equals("Front", StringComparison.OrdinalIgnoreCase)
-                                     && v.ViewType == ViewType.Elevation);
+                .FirstOrDefault(v => v.Name.Equals(viewName, StringComparison.OrdinalIgnoreCase));
         }
 
-        private void CreateHorizontalDimensions(List<Tuple<Element, VentUnitItem>> elements, double offset, bool isExhaust)
+        private void CreateTopHorizontalDimensions(List<Tuple<Element, VentUnitItem>> elements)
+        {
+            using (Transaction tx = new Transaction(_doc, "Creating top horizontal dimensions"))
+            {
+                tx.Start();
+
+                if (elements.Count < 2) return;
+
+                List<Tuple<Reference, Reference>> facePairs = new();
+
+                foreach (var (element, _) in elements)
+                {
+                    List<Reference> xAlignedFaces = GetParallelFaces(element, XYZ.BasisX);
+                    if (xAlignedFaces.Count < 2) continue;
+
+                    Reference leftFace = xAlignedFaces.OrderBy(f => GetFaceCenter(f).X).First();
+                    Reference rightFace = xAlignedFaces.OrderBy(f => GetFaceCenter(f).X).Last();
+
+                    facePairs.Add(Tuple.Create(leftFace, rightFace));
+                }
+
+                if (facePairs.Count < 2) return;
+
+                double dimLineOffset = _halfmaxWidth * 2 + 1;
+                XYZ dimLineBasePosition = new XYZ(0, dimLineOffset, 0);
+
+                for (int i = 0; i < facePairs.Count; i++)
+                {
+                    ReferenceArray refArray = new ReferenceArray();
+
+                    refArray.Append(facePairs[i].Item1);
+                    refArray.Append(facePairs[i].Item2);
+                    Line dimLine = Line.CreateBound(dimLineBasePosition, dimLineBasePosition + XYZ.BasisX * 10);
+                    _doc.FamilyCreate.NewDimension(_refView, dimLine, refArray);
+
+                    if (i < facePairs.Count - 1)
+                    {
+                        ReferenceArray interElementRefArray = new ReferenceArray();
+                        interElementRefArray.Append(facePairs[i].Item2);
+                        interElementRefArray.Append(facePairs[i + 1].Item1);
+                        Line interElementDimLine = Line.CreateBound(dimLineBasePosition, dimLineBasePosition + XYZ.BasisX * 10);
+                        _doc.FamilyCreate.NewDimension(_refView, interElementDimLine, interElementRefArray);
+                    }
+                }
+
+                tx.Commit();
+                tx.Start();
+
+                RemoveZeroDimensionsFromFrontView(_refView);
+
+                tx.Commit();
+            }
+        }
+
+        private void CreateTopVerticalDimensions(List<Tuple<Element, VentUnitItem>> elements)
+        {
+            using (Transaction tx = new Transaction(_doc, "Creating top vertical dimensions"))
+            {
+                tx.Start();
+
+                var allElements = _intakeElements.Concat(_exhaustElements).ToList();
+                if (allElements.Count < 2) return;
+
+                Tuple<Element, VentUnitItem> maxWidthElement = null;
+                Tuple<Element, VentUnitItem> minWidthElement = null;
+                Tuple<Element, VentUnitItem> leftmostElement = null;
+
+                double maxWidth = double.MinValue;
+                double minWidth = double.MaxValue;
+                double minX = double.MaxValue;
+
+                foreach (var element in allElements)
+                {
+                    double width = element.Item2.WidthTotal;
+                    if (width > maxWidth)
+                    {
+                        maxWidth = width;
+                        maxWidthElement = element;
+                    }
+
+                    List<Reference> verticalFaces = GetParallelFaces(element.Item1, XYZ.BasisX);
+                    if (verticalFaces.Any())
+                    {
+                        double elementMinX = verticalFaces.Select(f => GetFaceCenter(f).X).Min();
+                        if (elementMinX < minX)
+                        {
+                            minX = elementMinX;
+                            leftmostElement = element;
+                        }
+                    }
+                }
+
+                foreach (var element in allElements)
+                {
+                    double width = element.Item2.WidthTotal;
+                    if (width < minWidth && width > 0 && width < maxWidth)
+                    {
+                        minWidth = width;
+                        minWidthElement = element;
+                    }
+                }
+
+                if (maxWidthElement == null || minWidthElement == null || leftmostElement == null)
+                {
+                    TaskDialog.Show("Ошибка", "Не удалось найти нужные элементы.");
+                    return;
+                }
+
+                List<Reference> maxWidthFaces = GetParallelFaces(maxWidthElement.Item1, XYZ.BasisY);
+                if (maxWidthFaces.Count < 2) return;
+
+                Reference maxWidthLeftFace = maxWidthFaces.OrderBy(f => GetFaceCenter(f).Y).First();
+                Reference maxWidthRightFace = maxWidthFaces.OrderBy(f => GetFaceCenter(f).Y).Last();
+
+                List<Reference> minWidthFaces = GetParallelFaces(minWidthElement.Item1, XYZ.BasisY);
+                if (minWidthFaces.Count < 2) return;
+
+                Reference minWidthLeftFace = minWidthFaces.OrderBy(f => GetFaceCenter(f).Y).First();
+                Reference minWidthRightFace = minWidthFaces.OrderBy(f => GetFaceCenter(f).Y).Last();
+
+                XYZ leftmostFacePosition = new XYZ(minX, 0, 0);
+
+                ReferenceArray maxWidthRefArray = new ReferenceArray();
+                maxWidthRefArray.Append(maxWidthLeftFace);
+                maxWidthRefArray.Append(maxWidthRightFace);
+                Line maxWidthDimLine = Line.CreateBound(leftmostFacePosition + new XYZ(-2, 0, 0), leftmostFacePosition + new XYZ(-2, 10, 0));
+                _doc.FamilyCreate.NewDimension(_refView, maxWidthDimLine, maxWidthRefArray);
+
+                ReferenceArray minWidthRefArray = new ReferenceArray();
+                minWidthRefArray.Append(minWidthLeftFace);
+                minWidthRefArray.Append(minWidthRightFace);
+                Line minWidthDimLine = Line.CreateBound(leftmostFacePosition + new XYZ(-1, 0, 0), leftmostFacePosition + new XYZ(-1, 10, 0));
+                _doc.FamilyCreate.NewDimension(_refView, minWidthDimLine, minWidthRefArray);
+
+                tx.Commit();
+                tx.Start();
+
+                RemoveZeroDimensionsFromFrontView(_refView);
+
+                tx.Commit();
+            }
+        }
+
+        private void CreateHorizontalDimensions(List<Tuple<Element, VentUnitItem>> elements, XYZ offset, bool isExhaust, View view)
         {
             using (Transaction tx = new(_doc, "Creating horizontal dimensions"))
             {
@@ -103,7 +261,7 @@ namespace FERCPlugin.Core.Models
 
                     if (refArray.Size > 1)
                     {
-                        XYZ dimLinePosition = GetFaceCenter(leftFaces.First()) + new XYZ(0, 0, offset);
+                        XYZ dimLinePosition = GetFaceCenter(leftFaces.First()) + offset;
                         Line dimLine = Line.CreateBound(dimLinePosition, dimLinePosition + XYZ.BasisX * 10);
                         _doc.FamilyCreate.NewDimension(_frontView, dimLine, refArray);
                     }
@@ -117,10 +275,10 @@ namespace FERCPlugin.Core.Models
                         singleRefArray.Append(leftFaces[i]);
                         singleRefArray.Append(rightFaces[i]);
 
-                        XYZ dimLinePosition = GetFaceCenter(leftFaces[i]) + new XYZ(0, 0, offset);
+                        XYZ dimLinePosition = GetFaceCenter(leftFaces[i]) + offset;
                         Line dimLine = Line.CreateBound(dimLinePosition, dimLinePosition + XYZ.BasisX * 10);
 
-                        _doc.FamilyCreate.NewDimension(_frontView, dimLine, singleRefArray);
+                        _doc.FamilyCreate.NewDimension(view, dimLine, singleRefArray);
                     }
 
                     for (int i = 0; i < rightFaces.Count - 1; i++)
@@ -136,10 +294,10 @@ namespace FERCPlugin.Core.Models
                             gapRefArray.Append(rightFaces[i]);
                             gapRefArray.Append(leftFaces[i + 1]);
 
-                            XYZ dimLinePosition = rightFacePos + new XYZ(0, 0, offset);
+                            XYZ dimLinePosition = rightFacePos + offset;
                             Line dimLine = Line.CreateBound(dimLinePosition, dimLinePosition + XYZ.BasisX * 10);
 
-                            _doc.FamilyCreate.NewDimension(_frontView, dimLine, gapRefArray);
+                            _doc.FamilyCreate.NewDimension(view, dimLine, gapRefArray);
                         }
                     }
                 }
@@ -152,10 +310,10 @@ namespace FERCPlugin.Core.Models
                         singleRefArray.Append(leftFaces[i]);
                         singleRefArray.Append(rightFaces[i]);
 
-                        XYZ dimLinePosition = GetFaceCenter(leftFaces[i]) + new XYZ(0, 0, offset + _halfHeightIntake);
+                        XYZ dimLinePosition = GetFaceCenter(leftFaces[i]) + offset + new XYZ(0, 0, _halfHeightIntake);
                         Line dimLine = Line.CreateBound(dimLinePosition, dimLinePosition + XYZ.BasisX * 10);
 
-                        _doc.FamilyCreate.NewDimension(_frontView, dimLine, singleRefArray);
+                        _doc.FamilyCreate.NewDimension(view, dimLine, singleRefArray);
                     }
 
                     for (int i = 0; i < rightFaces.Count - 1; i++)
@@ -171,10 +329,10 @@ namespace FERCPlugin.Core.Models
                             gapRefArray.Append(rightFaces[i]);
                             gapRefArray.Append(leftFaces[i + 1]);
 
-                            XYZ dimLinePosition = rightFacePos + new XYZ(0, 0, offset + _halfHeightIntake);
+                            XYZ dimLinePosition = rightFacePos + offset + new XYZ(0, 0, _halfHeightIntake);
                             Line dimLine = Line.CreateBound(dimLinePosition, dimLinePosition + XYZ.BasisX * 10);
 
-                            _doc.FamilyCreate.NewDimension(_frontView, dimLine, gapRefArray);
+                            _doc.FamilyCreate.NewDimension(view, dimLine, gapRefArray);
                         }
                     }
                 }
@@ -182,37 +340,37 @@ namespace FERCPlugin.Core.Models
                 ReferenceArray refArrayGeneral = new ReferenceArray();
                 refArrayGeneral.Append(leftFaces.First());
                 refArrayGeneral.Append(rightFaces.Last());
-                double offsetAdjustment = 0;
+                XYZ offsetAdjustment = new XYZ(0, 0, 0);
                 XYZ dimLinePositionGeneral = new XYZ(0, 0, 0);
 
 
-                offsetAdjustment = (isExhaust == _isIntakeBelow) ? offset + 1 : offset - 1;
-                dimLinePositionGeneral = GetFaceCenter(leftFaces.First()) + new XYZ(0, 0, offsetAdjustment);
+                offsetAdjustment = (isExhaust == _isIntakeBelow) ? offset + new XYZ(0, 0, 1) : offset - new XYZ(0, 0, 1);
+                dimLinePositionGeneral = GetFaceCenter(leftFaces.First()) + offsetAdjustment + new XYZ(0, 1, 0);
 
                 if (isExhaust && _intakeElements.Count == 0)
                 {
-                    dimLinePositionGeneral = GetFaceCenter(leftFaces.First()) + new XYZ(0, 0, offset + _halfHeightIntake + 1);
+                    dimLinePositionGeneral = GetFaceCenter(leftFaces.First()) + offset + new XYZ(0, 0, _halfHeightIntake + 1);
                 }
 
                 Line dimLineGeneral = Line.CreateBound(dimLinePositionGeneral, dimLinePositionGeneral + XYZ.BasisX * 10);
 
-                _doc.FamilyCreate.NewDimension(_frontView, dimLineGeneral, refArrayGeneral);
+                _doc.FamilyCreate.NewDimension(view, dimLineGeneral, refArrayGeneral);
 
                 tx.Commit();
 
                 tx.Start();
 
-                RemoveZeroDimensionsFromFrontView();
+                RemoveZeroDimensionsFromFrontView(view);
 
                 tx.Commit();
             }
         }
 
-        private void RemoveZeroDimensionsFromFrontView()
+        private void RemoveZeroDimensionsFromFrontView(View view)
         {
             List<ElementId> toDelete = new List<ElementId>();
 
-            var dimensions = new FilteredElementCollector(_doc, _frontView.Id)
+            var dimensions = new FilteredElementCollector(_doc, view.Id)
                 .OfClass(typeof(Dimension))
                 .Cast<Dimension>();
 
@@ -257,7 +415,7 @@ namespace FERCPlugin.Core.Models
                 tx.Commit();
                 tx.Start();
 
-                RemoveZeroDimensionsFromFrontView();
+                RemoveZeroDimensionsFromFrontView(_frontView);
 
                 tx.Commit();
             }
@@ -461,20 +619,11 @@ namespace FERCPlugin.Core.Models
             _doc.FamilyCreate.NewDimension(_frontView, dimLine, refArray);
         }
 
-        private void CreateFilledRegionsForDisplayElements()
+        private void CreateTextForDisplayElements()
         {
             using (Transaction tx = new Transaction(_doc, "Create Filled Regions"))
             {
                 tx.Start();
-
-                View frontView = GetFrontView();
-
-                FamilySymbol filledRegionSymbol = GetOrLoadFilledRegionFamily();
-                if (filledRegionSymbol == null)
-                {
-                    TaskDialog.Show("Ошибка", "Не удалось загрузить семейство FilledRegion.rfa");
-                    return;
-                }
 
                 List<Tuple<Element, VentUnitItem>> allElements = _intakeElements.Concat(_exhaustElements).ToList();
                 List<FamilyInstance> createdRegions = new List<FamilyInstance>();
@@ -498,18 +647,16 @@ namespace FERCPlugin.Core.Models
                     double width = ventUnitItem.LengthTotal;
                     double height = ventUnitItem.HeightTotal;
 
-                    FamilyInstance regionInstance = InsertFilledRegion(filledRegionSymbol, centerPoint, targetFaceRef);
-
-                    SetFilledRegionSize(regionInstance, width, height);
-
                     AddDisplayIndexText(topLeftPoint, ventUnitItem.DisplayIndex ?? -1);
-
-                    createdRegions.Add(regionInstance);
                 }
 
-                frontView.DisplayStyle = DisplayStyle.FlatColors;
+                _frontView.DisplayStyle = DisplayStyle.FlatColors;
 
-                frontView.DetailLevel = ViewDetailLevel.Fine;
+                _frontView.DetailLevel = ViewDetailLevel.Fine;
+
+                _refView.DisplayStyle = DisplayStyle.FlatColors;
+
+                _refView.DetailLevel = ViewDetailLevel.Fine;
 
                 tx.Commit();
             }
@@ -523,7 +670,7 @@ namespace FERCPlugin.Core.Models
             return contours
                 .SelectMany(loop => loop)
                 .Select(curve => curve.GetEndPoint(0))
-                .OrderBy(p => p.X) 
+                .OrderBy(p => p.X)
                 .ThenByDescending(p => p.Z)
                 .FirstOrDefault() ?? XYZ.Zero;
         }
@@ -587,54 +734,6 @@ namespace FERCPlugin.Core.Models
             double avgZ = points.Average(p => p.Z);
 
             return new XYZ(avgX, avgY, avgZ);
-        }
-
-        private FamilySymbol GetOrLoadFilledRegionFamily()
-        {
-            FamilySymbol symbol = new FilteredElementCollector(_doc)
-                .OfClass(typeof(FamilySymbol))
-                .Cast<FamilySymbol>()
-                .FirstOrDefault(s => s.Family.Name == "FilledRegion");
-
-            if (symbol == null)
-            {
-                string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-
-                string familyPath = Path.Combine(appDataPath, "Autodesk", "Revit", "Addins", "2025", "FERC", "FilledRegion.rfa");
-
-                if (!File.Exists(familyPath))
-                {
-                    TaskDialog.Show("Ошибка", $"Файл семейства не найден: {familyPath}");
-                    return null;
-                }
-
-                Family loadedFamily;
-                if (_doc.LoadFamily(familyPath, out loadedFamily))
-                {
-                    ICollection<ElementId> symbolIds = loadedFamily.GetFamilySymbolIds();
-                    if (symbolIds.Any())
-                    {
-                        symbol = _doc.GetElement(symbolIds.First()) as FamilySymbol;
-                    }
-                }
-            }
-            return symbol;
-        }
-
-        private FamilyInstance InsertFilledRegion(FamilySymbol symbol, XYZ location, Reference targetFaceRef)
-        {
-            if (!symbol.IsActive)
-                symbol.Activate();
-
-            return _doc.FamilyCreate.NewFamilyInstance(targetFaceRef, location, XYZ.BasisX, symbol);
-        }
-
-        private void SetFilledRegionSize(FamilyInstance instance, double width, double height)
-        {
-            Parameter widthParam = instance.LookupParameter("Width");
-            Parameter heightParam = instance.LookupParameter("Height");
-            if (widthParam != null) widthParam.Set(width * MM_TO_FEET);
-            if (heightParam != null) heightParam.Set(height * MM_TO_FEET);
         }
 
         private List<Tuple<Element, VentUnitItem>> DeepCopyElements(List<Tuple<Element, VentUnitItem>> elements)

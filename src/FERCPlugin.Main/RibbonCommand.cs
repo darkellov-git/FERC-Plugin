@@ -85,9 +85,9 @@ namespace FERCPlugin.Main
 
                 VentUnitGeometryBuilder builder = new VentUnitGeometryBuilder(reopenedFamilyDoc, processor.Intake, processor.Exhaust, isIntakeBelow, frameHeight);
 
-                var (intakeElements, exhaustElements, maxHeightIntake, maxHeightExhaust) = builder.BuildGeometry();
+                var (intakeElements, exhaustElements, maxHeightIntake, maxHeightExhaust, maxWidth) = builder.BuildGeometry();
 
-                AnnotationBuilder annotationBuilder = new AnnotationBuilder(reopenedFamilyDoc, intakeElements, exhaustElements, hasUtilizationCross, isIntakeBelow, maxHeightIntake, maxHeightExhaust);
+                AnnotationBuilder annotationBuilder = new AnnotationBuilder(reopenedFamilyDoc, intakeElements, exhaustElements, hasUtilizationCross, isIntakeBelow, maxHeightIntake, maxHeightExhaust, maxWidth);
                 annotationBuilder.AddAnnotations();
 
                 //DuctConnectorCreator connectorCreator = new DuctConnectorCreator(reopenedFamilyDoc, flexibleDampers);
