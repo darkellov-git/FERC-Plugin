@@ -28,6 +28,7 @@ namespace FERCPlugin.Core.Models
 
             bool isIntakeBelow = rootObj.SelectToken("design.isIntakeBelow")?.Value<bool>() ?? false;
             string serviceSideIntake = rootObj.SelectToken("serviceSideIntake")?.Value<string>() ?? "right";
+            string serviceSideExhaust = rootObj.SelectToken("serviceSideExhaust")?.Value<string>() ?? "right";
             double frameHeight = rootObj.SelectToken("design.frame.frame.height")?.Value<double>() ?? 0.0;
 
             JToken drawingToken = rootObj.SelectToken("result.drawing") ?? throw new Exception("В исходном файле не найден объект 'result.drawing'.");
@@ -37,6 +38,7 @@ namespace FERCPlugin.Core.Models
             {
                 drawingObj["isIntakeBelow"] = isIntakeBelow;
                 drawingObj["serviceSideIntake"] = serviceSideIntake;
+                drawingObj["serviceSideExhaust"] = serviceSideExhaust;
                 drawingObj["frameHeight"] = frameHeight;
             }
 

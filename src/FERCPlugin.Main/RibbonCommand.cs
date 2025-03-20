@@ -36,6 +36,7 @@ namespace FERCPlugin.Main
 
                 bool isIntakeBelow = true;
                 string intakeServiceside = "unknown";
+                string exhaustServiceSide = "unknown";
                 double frameHeight = 0.0;
 
                 if (File.Exists(formattedJsonPath))
@@ -44,6 +45,7 @@ namespace FERCPlugin.Main
                     JObject rootObj = JObject.Parse(jsonContent);
                     isIntakeBelow = rootObj.SelectToken("isIntakeBelow")?.Value<bool>() ?? false;
                     intakeServiceside = rootObj.SelectToken("serviceSideIntake")?.Value<string>() ?? "unknown";
+                    exhaustServiceSide = rootObj.SelectToken("serviceSideExhaust")?.Value<string>() ?? "unknown";
                     frameHeight = rootObj.SelectToken("frameHeight")?.Value<double>() ?? 0.0;
                 }
 
@@ -87,7 +89,8 @@ namespace FERCPlugin.Main
 
                 var (intakeElements, exhaustElements, maxHeightIntake, maxHeightExhaust, maxWidth) = builder.BuildGeometry();
 
-                AnnotationBuilder annotationBuilder = new AnnotationBuilder(reopenedFamilyDoc, intakeElements, exhaustElements, hasUtilizationCross, isIntakeBelow, maxHeightIntake, maxHeightExhaust, maxWidth);
+                AnnotationBuilder annotationBuilder = new AnnotationBuilder(reopenedFamilyDoc, intakeElements, exhaustElements, hasUtilizationCross,
+                                                                            isIntakeBelow, maxHeightIntake, maxHeightExhaust, maxWidth, intakeServiceside, exhaustServiceSide);
                 annotationBuilder.AddAnnotations();
 
                 //DuctConnectorCreator connectorCreator = new DuctConnectorCreator(reopenedFamilyDoc, flexibleDampers);

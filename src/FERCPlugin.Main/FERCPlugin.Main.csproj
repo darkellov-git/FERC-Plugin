@@ -19,6 +19,13 @@
   </Choose>
 
   <ItemGroup>
+    <Compile Remove="Resources\Families\**" />
+    <EmbeddedResource Remove="Resources\Families\**" />
+    <None Remove="Resources\Families\**" />
+    <Page Remove="Resources\Families\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Ninject" Version="3.3.6" />
   </ItemGroup>
@@ -37,17 +44,85 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="Resources\Families\FilledRegion.rfa" />
     <None Remove="Resources\Icons\Icon_32.png" />
+    <None Remove="Resources\Minis\electricHeater.png" />
+    <None Remove="Resources\Minis\evaporator.png" />
+    <None Remove="Resources\Minis\fanLeft.png" />
+    <None Remove="Resources\Minis\fanRight.png" />
+    <None Remove="Resources\Minis\filter.png" />
+    <None Remove="Resources\Minis\flexibleDamper.png" />
+    <None Remove="Resources\Minis\humidifier.png" />
+    <None Remove="Resources\Minis\humidifierAdiabatic.png" />
+    <None Remove="Resources\Minis\intermediateCoolant.png" />
+    <None Remove="Resources\Minis\multifunctional.png" />
+    <None Remove="Resources\Minis\noiseSupressor.png" />
+    <None Remove="Resources\Minis\rotorUtilizer.png" />
+    <None Remove="Resources\Minis\utilizer.png" />
+    <None Remove="Resources\Minis\utilizerCross.png" />
+    <None Remove="Resources\Minis\uv.png" />
+    <None Remove="Resources\Minis\valve.png" />
+    <None Remove="Resources\Minis\waterCooler.png" />
+    <None Remove="Resources\Minis\waterHeater.png" />
     <None Remove="Resources\testCommand.png" />
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Resources\Families\FilledRegion.rfa">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Resource>
     <Resource Include="Resources\Icons\Icon_32.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\electricHeater.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\evaporator.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\fanLeft.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\fanRight.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\filter.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\flexibleDamper.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\humidifier.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\humidifierAdiabatic.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\intermediateCoolant.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\multifunctional.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\noiseSupressor.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\rotorUtilizer.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\utilizer.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\utilizerCross.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\uv.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\valve.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\waterCooler.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\Minis\waterHeater.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Resource>
   </ItemGroup>
 </Project>

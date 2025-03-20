@@ -1,5 +1,6 @@
 ﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using System.Linq;
 
 namespace FERCPlugin.Core.Models
 {
@@ -15,6 +16,8 @@ namespace FERCPlugin.Core.Models
         private static double _halfHeightIntake;
         private static double _halfHeightExhaust;
         private static double _halfmaxWidth;
+        private static string _intakeServiceSide;
+        private static string _exhaustServiceSide;
 
         private const double MM_TO_FEET = 0.00328084;
 
@@ -26,7 +29,9 @@ namespace FERCPlugin.Core.Models
             bool isIntakeBelow,
             double maxHeightIntake,
             double maxHeightExhaust,
-            double maxWidth)
+            double maxWidth,
+            string intakeServiceSide,
+            string exhaustServiceSide)
         {
             _doc = doc;
             _intakeElements = intakeElements;
@@ -36,6 +41,8 @@ namespace FERCPlugin.Core.Models
             _halfHeightIntake = maxHeightIntake / 2;
             _halfHeightExhaust = maxHeightExhaust / 2;
             _halfmaxWidth = maxWidth / 2;
+            _intakeServiceSide = intakeServiceSide;
+            _exhaustServiceSide = exhaustServiceSide;
             _frontView = GetView("Front");
             _refView = GetView("Ref. Level");
         }
@@ -66,6 +73,8 @@ namespace FERCPlugin.Core.Models
             }
 
             CreateTextForDisplayElements();
+
+            InsertPngAnnotations();
         }
 
         private View GetView(string viewName)
@@ -74,60 +83,6 @@ namespace FERCPlugin.Core.Models
                 .OfClass(typeof(View))
                 .Cast<View>()
                 .FirstOrDefault(v => v.Name.Equals(viewName, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private void CreateTopHorizontalDimensions(List<Tuple<Element, VentUnitItem>> elements)
-        {
-            using (Transaction tx = new Transaction(_doc, "Creating top horizontal dimensions"))
-            {
-                tx.Start();
-
-                if (elements.Count < 2) return;
-
-                List<Tuple<Reference, Reference>> facePairs = new();
-
-                foreach (var (element, _) in elements)
-                {
-                    List<Reference> xAlignedFaces = GetParallelFaces(element, XYZ.BasisX);
-                    if (xAlignedFaces.Count < 2) continue;
-
-                    Reference leftFace = xAlignedFaces.OrderBy(f => GetFaceCenter(f).X).First();
-                    Reference rightFace = xAlignedFaces.OrderBy(f => GetFaceCenter(f).X).Last();
-
-                    facePairs.Add(Tuple.Create(leftFace, rightFace));
-                }
-
-                if (facePairs.Count < 2) return;
-
-                double dimLineOffset = _halfmaxWidth * 2 + 1;
-                XYZ dimLineBasePosition = new XYZ(0, dimLineOffset, 0);
-
-                for (int i = 0; i < facePairs.Count; i++)
-                {
-                    ReferenceArray refArray = new ReferenceArray();
-
-                    refArray.Append(facePairs[i].Item1);
-                    refArray.Append(facePairs[i].Item2);
-                    Line dimLine = Line.CreateBound(dimLineBasePosition, dimLineBasePosition + XYZ.BasisX * 10);
-                    _doc.FamilyCreate.NewDimension(_refView, dimLine, refArray);
-
-                    if (i < facePairs.Count - 1)
-                    {
-                        ReferenceArray interElementRefArray = new ReferenceArray();
-                        interElementRefArray.Append(facePairs[i].Item2);
-                        interElementRefArray.Append(facePairs[i + 1].Item1);
-                        Line interElementDimLine = Line.CreateBound(dimLineBasePosition, dimLineBasePosition + XYZ.BasisX * 10);
-                        _doc.FamilyCreate.NewDimension(_refView, interElementDimLine, interElementRefArray);
-                    }
-                }
-
-                tx.Commit();
-                tx.Start();
-
-                RemoveZeroDimensionsFromFrontView(_refView);
-
-                tx.Commit();
-            }
         }
 
         private void CreateTopVerticalDimensions(List<Tuple<Element, VentUnitItem>> elements)
@@ -263,7 +218,7 @@ namespace FERCPlugin.Core.Models
                     {
                         XYZ dimLinePosition = GetFaceCenter(leftFaces.First()) + offset;
                         Line dimLine = Line.CreateBound(dimLinePosition, dimLinePosition + XYZ.BasisX * 10);
-                        _doc.FamilyCreate.NewDimension(_frontView, dimLine, refArray);
+                        _doc.FamilyCreate.NewDimension(view, dimLine, refArray);
                     }
                 }
 
@@ -667,11 +622,25 @@ namespace FERCPlugin.Core.Models
             if (contours == null || contours.Count == 0)
                 return XYZ.Zero;
 
-            return contours
+            var points = contours
                 .SelectMany(loop => loop)
-                .Select(curve => curve.GetEndPoint(0))
+                .SelectMany(curve => new List<XYZ> { curve.GetEndPoint(0), curve.GetEndPoint(1) })
+                .Distinct()
+                .ToList();
+
+            if (points.Count == 4)
+            {
+                return points
+                    .OrderBy(p => p.X)
+                    .ThenByDescending(p => p.Z)
+                    .FirstOrDefault() ?? XYZ.Zero;
+            }
+
+            double maxZ = points.Max(p => p.Z);
+
+            return points
+                .Where(p => Math.Abs(p.Z - maxZ) < 1e-6)
                 .OrderBy(p => p.X)
-                .ThenByDescending(p => p.Z)
                 .FirstOrDefault() ?? XYZ.Zero;
         }
 
@@ -767,6 +736,188 @@ namespace FERCPlugin.Core.Models
                     CutSize = t.Item2.CutInfo.CutSize
                 }
             })).ToList();
+        }
+
+        private readonly Dictionary<string, string> _imageMappings = new()
+        {
+            { "fan", "fanRight.png" },
+            { "noiseSuppressor", "noiseSupressor.png" },
+            { "waterHeater", "waterHeater.png" },
+            { "waterCooler", "waterCooler.png" },
+            { "multifuncSection", "multifunctional.png" },
+            { "steamHumidifier", "humidifier.png" },
+            { "electricHeater", "electricHeater.png" },
+            { "freonCooler", "evaporator.png" },
+            { "recyclingCamera", "utilizer.png" },
+            { "rotorUtilizer", "rotorUtilizer.png" },
+            { "plateUtilizer", "utilizerCross.png" },
+            { "interimCoolant", "intermediateCoolant.png" },
+            { "filter", "filter.png" }
+        };
+
+        public void InsertPngAnnotations()
+        {
+            using Transaction tx = new Transaction(_doc, "Insert PNG Annotations");
+            tx.Start();
+
+            List<Tuple<Element, VentUnitItem>> allElements = _intakeElements.Concat(_exhaustElements).ToList();
+
+            foreach (var (element, ventUnitItem) in allElements)
+            {
+                if (ventUnitItem.Children.Count == 0) continue;
+
+                List<Reference> yAlignedFaces = GetParallelFaces(element, XYZ.BasisY);
+                if (!yAlignedFaces.Any()) continue;
+
+                Reference targetFaceRef = yAlignedFaces[0];
+                Face targetFace = element.GetGeometryObjectFromReference(targetFaceRef) as Face;
+                if (targetFace == null) continue;
+
+                XYZ leftMostPoint = GetFaceLeftMostPoint(targetFace);
+                double startX = leftMostPoint.X;
+                double currentOffset = 0;
+
+                XYZ faceCenter = GetFaceCenter(targetFace);
+
+                if (ventUnitItem.Children.Count == 1)
+                {
+                    string imageName = GetImageName(ventUnitItem.Children.First().Id);
+                    if (string.IsNullOrEmpty(imageName)) continue;
+
+                    XYZ imagePosition = new XYZ(
+                        startX + (ventUnitItem.LengthTotal * MM_TO_FEET) / 2,
+                        leftMostPoint.Y,
+                        faceCenter.Z 
+                    );
+                    PlaceImage(imagePosition, imageName);
+                }
+                else
+                {
+                    foreach (var child in ventUnitItem.Children)
+                    {
+                        string imageName = GetImageName(child.Id);
+                        if (string.IsNullOrEmpty(imageName)) continue;
+
+                        double centerX = startX + currentOffset + ((child.LengthTotal * MM_TO_FEET) / 2);
+
+                        XYZ imagePosition = new XYZ(
+                            centerX,
+                            leftMostPoint.Y,
+                            faceCenter.Z 
+                        );
+
+                        PlaceImage(imagePosition, imageName);
+                        currentOffset += child.LengthTotal * MM_TO_FEET;
+                    }
+                }
+            }
+
+            tx.Commit();
+        }
+
+        private XYZ GetFaceCenter(Face face)
+        {
+            List<XYZ> facePoints = new List<XYZ>();
+
+            foreach (EdgeArray edgeArray in face.EdgeLoops)
+            {
+                foreach (Edge edge in edgeArray)
+                {
+                    facePoints.AddRange(edge.Tessellate());
+                }
+            }
+
+            if (facePoints.Count == 0) return XYZ.Zero;
+
+            double avgX = facePoints.Average(p => p.X);
+            double avgY = facePoints.Average(p => p.Y);
+            double avgZ = facePoints.Average(p => p.Z);
+
+            return new XYZ(avgX, avgY, avgZ);
+        }
+
+        private XYZ GetFaceLeftMostPoint(Face face)
+        {
+            List<XYZ> edgePoints = new List<XYZ>();
+
+            foreach (EdgeArray edgeArray in face.EdgeLoops)
+            {
+                foreach (Edge edge in edgeArray)
+                {
+                    edgePoints.AddRange(edge.Tessellate());
+                }
+            }
+
+            if (edgePoints.Count == 0) return XYZ.Zero;
+
+            return edgePoints.OrderBy(p => p.X).ThenByDescending(p => p.Z).FirstOrDefault();
+        }
+
+        private string GetImageName(string id)
+        {
+            return _imageMappings.FirstOrDefault(kvp => id.IndexOf(kvp.Key, StringComparison.OrdinalIgnoreCase) >= 0).Value;
+        }
+
+        private void PlaceImage(XYZ location, string imageName)
+        {
+            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string imagePath = Path.Combine(appDataPath, "Autodesk", "Revit", "Addins", "2025", "FERC", "Resources", imageName);
+
+            if (!File.Exists(imagePath))
+            {
+                TaskDialog.Show("Ошибка", $"Файл изображения не найден: {imagePath}");
+                return;
+            }
+
+            ImageType imageType = new FilteredElementCollector(_doc)
+                .OfClass(typeof(ImageType))
+                .Cast<ImageType>()
+                .FirstOrDefault(it => it.Path == imagePath);
+
+            if (imageType == null)
+            {
+#if RELEASE2022 || RELEASE2023 || RELEASE2024 || RELEASE2025
+                ImageTypeOptions imageTypeOptions = new ImageTypeOptions(imagePath, false, ImageTypeSource.Import);
+                imageType = ImageType.Create(_doc, imageTypeOptions);
+#else
+            imageType = ImageType.Create(_doc, imagePath);
+#endif
+            }
+
+            if (imageType == null)
+            {
+                TaskDialog.Show("Ошибка", $"Не удалось создать ImageType для {imageName}");
+                return;
+            }
+
+#if RELEASE2022 || RELEASE2023 || RELEASE2024 || RELEASE2025
+            ImagePlacementOptions placementOptions = new ImagePlacementOptions(location, BoxPlacement.Center);
+#else
+        ImagePlacementOptions placementOptions = new ImagePlacementOptions
+        {
+            Location = location
+        };
+#endif
+
+            ImageInstance imageInstance = ImageInstance.Create(_doc, _frontView, imageType.Id, placementOptions);
+
+            if (imageInstance == null)
+            {
+                TaskDialog.Show("Ошибка", $"Не удалось вставить изображение: {imageName}");
+                return;
+            }
+
+            Parameter widthParam = imageInstance.get_Parameter(BuiltInParameter.RASTER_SHEETWIDTH);
+            if (widthParam != null && !widthParam.IsReadOnly)
+            {
+                widthParam.Set(0.65616797900262);
+            }
+
+            Parameter drawLayerParam = imageInstance.get_Parameter(BuiltInParameter.IMPORT_BACKGROUND);
+            if (drawLayerParam != null && !drawLayerParam.IsReadOnly)
+            {
+                drawLayerParam.Set(0);
+            }
         }
     }
 }

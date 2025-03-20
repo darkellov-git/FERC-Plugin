@@ -4,8 +4,6 @@ using Autodesk.Revit.UI;
 using Ninject;
 using FERCPlugin.Core.Models;
 using TaskDialog = Autodesk.Revit.UI.TaskDialog;
-using System;
-using System.Collections.Generic;
 using System.Reflection;
 using System.Windows.Media.Imaging;
 using Autodesk.Revit.DB;
