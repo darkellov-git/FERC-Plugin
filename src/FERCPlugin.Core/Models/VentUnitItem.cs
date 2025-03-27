@@ -32,6 +32,7 @@
         public List<VentUnitPanel> ServicePanels { get; set; } = new();
         public List<VentUnitPipe> Pipes { get; set; } = new();
         public VentUnitWindow Window { get; set; }
+        public string ExhaustDirection { get; set; }
     }
 
     public class VentUnitPipe
@@ -44,8 +45,8 @@
     public class VentUnitWindow
     {
         public double X { get; set; }
-        public double Y { get; set; }  
-        public double D { get; set; } 
+        public double Y { get; set; }
+        public double D { get; set; }
     }
 
     public class UtilizerUnitCutInfo

@@ -85,7 +85,7 @@ namespace FERCPlugin.Main
                 UIDocument uiFamilyDoc = uiApp.OpenAndActivateDocument(familySavePath);
                 Document reopenedFamilyDoc = uiFamilyDoc.Document;
 
-                VentUnitGeometryBuilder builder = new VentUnitGeometryBuilder(reopenedFamilyDoc, processor.Intake, processor.Exhaust, isIntakeBelow, frameHeight);
+                VentUnitGeometryBuilder builder = new VentUnitGeometryBuilder(reopenedFamilyDoc, processor.Intake, processor.Exhaust, isIntakeBelow, frameHeight, intakeServiceside, exhaustServiceSide);
 
                 var (intakeElements, exhaustElements, maxHeightIntake, maxHeightExhaust, maxWidth) = builder.BuildGeometry();
 

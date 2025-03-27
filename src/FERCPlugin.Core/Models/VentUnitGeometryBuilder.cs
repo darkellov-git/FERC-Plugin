@@ -17,15 +17,21 @@ namespace FERCPlugin.Core.Models
         private double _totalLengthIntake;
         private double _totalLengthExhaust;
 
+        private string _intakeServiceside;
+        private string _exhaustServiceside;
+
         private const double MM_TO_FEET = 0.00328084;
 
-        public VentUnitGeometryBuilder(Document doc, List<VentUnitItem> intakeUnits, List<VentUnitItem> exhaustUnits, bool isIntakeBelow, double frameHeight)
+        public VentUnitGeometryBuilder(Document doc, List<VentUnitItem> intakeUnits, List<VentUnitItem> exhaustUnits, bool isIntakeBelow,
+            double frameHeight, string intakeServiceside, string exhaustServiceside)
         {
             _doc = doc;
             _intakeUnits = intakeUnits;
             _exhaustUnits = exhaustUnits;
             _isIntakeBelow = isIntakeBelow;
             _frameHeight = frameHeight;
+            _intakeServiceside = intakeServiceside;
+            _exhaustServiceside = exhaustServiceside;
 
             if (_intakeUnits.Count > 0)
             {
@@ -88,6 +94,9 @@ namespace FERCPlugin.Core.Models
                 }
 
                 tx.Commit();
+
+                AdjustEndElementsOrientation(intakeElements, true);
+                AdjustEndElementsOrientation(exhaustElements, false);
             }
 
             return (intakeElements, exhaustElements, _maxHeightIntake, _maxHeightExhaust, _maxWidth);
@@ -614,7 +623,6 @@ namespace FERCPlugin.Core.Models
             return redLinesSubcategory;
         }
 
-
         private void CreateFrameExtrusion(VentUnitItem unit, double minX, double maxX, double minZ)
         {
             double frameMinZ = Math.Round(minZ - _frameHeight * MM_TO_FEET, 2);
@@ -794,5 +802,333 @@ namespace FERCPlugin.Core.Models
             return (hasLeftCut, hasRightCut, cutSize);
         }
 
+        private void AdjustEndElementsOrientation(List<Tuple<Element, VentUnitItem>> elements, bool isIntake)
+        {
+            if (elements.Count < 2) return;
+
+            Tuple<Element, VentUnitItem> startTarget = null;
+            Tuple<Element, VentUnitItem> endTarget = null;
+
+            int countStartEnd = 0;
+            for (int i = 0; i < Math.Min(2, elements.Count); i++)
+            {
+                if (IsEndElement(elements[i].Item2))
+                    countStartEnd++;
+                else
+                    break;
+            }
+
+            if (countStartEnd > 0)
+            {
+                int searchIndex = countStartEnd;
+                startTarget = elements.Skip(searchIndex)
+                                      .FirstOrDefault(e => e.Item2.Children.Any(IsFanOrMultifunc));
+
+                if (startTarget != null)
+                {
+                    var direction = startTarget.Item2.Children.First(IsFanOrMultifunc).ExhaustDirection;
+                    if (!string.Equals(direction, "axe", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var endTuples = elements.Take(countStartEnd).ToList();
+                        var endElements = endTuples.Select(e => e.Item1).ToList();
+
+                        ApplyRotationAndTranslation(endElements, direction, true, startTarget.Item1, startTarget.Item2);
+                        foreach (var item in endTuples)
+                        {
+                            elements.Remove(item);
+                        }
+                    }
+                }
+            }
+
+            int countEndEnd = 0;
+            for (int i = elements.Count - 1; i >= Math.Max(0, elements.Count - 2); i--)
+            {
+                if (IsEndElement(elements[i].Item2))
+                    countEndEnd++;
+                else
+                    break;
+            }
+
+            if (countEndEnd > 0)
+            {
+                int searchRange = elements.Count - countEndEnd;
+                endTarget = elements.Take(searchRange)
+                                    .Reverse()
+                                    .FirstOrDefault(e => e.Item2.Children.Any(IsFanOrMultifunc));
+
+                if (endTarget != null && (startTarget == null || endTarget.Item2.Id != startTarget.Item2.Id))
+                {
+                    var direction = endTarget.Item2.Children.First(IsFanOrMultifunc).ExhaustDirection;
+                    if (!string.Equals(direction, "axe", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var endTuples = elements.Skip(elements.Count - countEndEnd).ToList();
+                        var endElements = endTuples.Select(e => e.Item1).ToList();
+
+                        ApplyRotationAndTranslation(endElements, direction, false, endTarget.Item1, endTarget.Item2);
+                        foreach (var item in endTuples)
+                        {
+                            elements.Remove(item);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void ApplyRotationAndTranslation(List<Element> endElements, string direction, bool isStart, Element targetElement, VentUnitItem ventUnitItem)
+        {
+            using (Transaction tx = new(_doc, "Rotate and Move End Elements"))
+            {
+                tx.Start();
+                direction = direction.ToLower();
+
+                XYZ rotationAxis;
+                double angle;
+
+                if (direction == "service_side" || direction == "side")
+                {
+                    rotationAxis = XYZ.BasisZ;
+                    angle = direction == "service_side"
+                        ? (isStart ? Math.PI / 2 : -Math.PI / 2)
+                        : (isStart ? -Math.PI / 2 : Math.PI / 2);
+                }
+                else if (direction == "up" || direction == "down")
+                {
+                    rotationAxis = XYZ.BasisY;
+                    angle = ((direction == "up" && isStart) || (direction == "down" && !isStart))
+                        ? Math.PI / 2
+                        : -Math.PI / 2;
+                }
+                else
+                {
+                    return;
+                }
+
+                ICollection<ElementId> ids = endElements.Select(e => e.Id).ToList();
+                Line rotationLine = Line.CreateUnbound(XYZ.Zero, rotationAxis);
+                ElementTransformUtils.RotateElements(_doc, ids, rotationLine, angle);
+
+                tx.Commit();
+                tx.Start();
+
+                List<Solid> solids = endElements
+                    .Select(GetSolidFromElement)
+                    .Where(s => s != null)
+                    .ToList();
+
+                if (solids.Count == 0)
+                {
+                    tx.RollBack();
+                    return;
+                }
+
+                XYZ sourcePoint = FindReferencePoint(solids, direction);
+                XYZ targetPoint = FindTargetPoint(targetElement, direction);
+
+                if (ventUnitItem.Children.Count > 1 && ventUnitItem.Children.Any(IsFanOrMultifunc) && sourcePoint != null && targetPoint != null)
+                {
+                    var fanOrMultifunc = ventUnitItem.Children.First(IsFanOrMultifunc);
+
+                    Solid targetSolid = GetSolidFromElement(targetElement);
+                    if (targetSolid != null)
+                    {
+                        double minX = targetSolid.Faces
+                            .OfType<PlanarFace>()
+                            .SelectMany(f => f.EdgeLoops.Cast<EdgeArray>())
+                            .SelectMany(edges => edges.Cast<Edge>())
+                            .SelectMany(edge => edge.Tessellate())
+                            .Min(p => p.X);
+
+                        double accumulatedLength = 0;
+                        foreach (var child in ventUnitItem.Children)
+                        {
+                            double childLength = child.LengthTotal * MM_TO_FEET;
+
+                            if (child.Id == fanOrMultifunc.Id)
+                            {
+                                double childCenterX = minX + accumulatedLength + (childLength / 2);
+                                targetPoint = new XYZ(childCenterX, targetPoint.Y, targetPoint.Z);
+                                break;
+                            }
+
+                            accumulatedLength += childLength;
+                        }
+                    }
+                }
+
+                if (sourcePoint != null && targetPoint != null)
+                {
+                    XYZ moveVector = targetPoint - sourcePoint;
+                    MoveElements(ids, moveVector);
+                }
+
+                tx.Commit();
+            }
+        }
+
+        bool IsEndElement(VentUnitItem unit)
+        {
+            return unit.Children.Any(c => c.Type.Contains("flexibleDamper") || c.Type.Contains("airValve"));
+        }
+
+        bool IsFanOrMultifunc(VentUnitChild child)
+        {
+            return child.Id.Contains("multifuncSection") || child.Id.Contains("fan");
+        }
+
+        private void MoveElements(ICollection<ElementId> elementIds, XYZ translation)
+        {
+            ElementTransformUtils.MoveElements(_doc, elementIds, translation);
+        }
+
+        private XYZ FindReferencePoint(List<Solid> solids, string direction)
+        {
+            var planarFaces = solids
+                .SelectMany(s => s.Faces.OfType<PlanarFace>())
+                .Where(f => f != null)
+                .ToList();
+
+            if (!planarFaces.Any()) return null;
+
+            PlanarFace targetFace = null;
+
+            switch (direction.ToLower())
+            {
+                case "side":
+                    targetFace = planarFaces
+                        .Where(f => Math.Abs(f.FaceNormal.Y) > 0.9 || Math.Abs(f.FaceNormal.Y) < -0.9)
+                        .OrderBy(f => f.Origin.Y)
+                        .FirstOrDefault();
+                    break;
+
+                case "service_side":
+                    targetFace = planarFaces
+                        .Where(f => Math.Abs(f.FaceNormal.Y) > 0.9 || Math.Abs(f.FaceNormal.Y) < -0.9)
+                        .OrderByDescending(f => f.Origin.Y)
+                        .FirstOrDefault();
+                    break;
+
+                case "up":
+                    targetFace = planarFaces
+                        .Where(f => Math.Abs(f.FaceNormal.Z) > 0.9 || Math.Abs(f.FaceNormal.Z) < -0.9)
+                        .OrderBy(f => f.Origin.Z)
+                        .FirstOrDefault();
+                    break;
+
+                case "down":
+                    targetFace = planarFaces
+                        .Where(f => Math.Abs(f.FaceNormal.Z) > 0.9 || Math.Abs(f.FaceNormal.Z) < -0.9)
+                        .OrderByDescending(f => f.Origin.Z)
+                        .FirstOrDefault();
+                    break;
+            }
+
+            return targetFace != null ? GetFaceCenter(targetFace) : null;
+        }
+
+        private XYZ FindTargetPoint(Element element, string direction)
+        {
+            if (element == null) return null;
+
+            Solid solid = GetSolidFromElement(element);
+            if (solid == null) return null;
+
+            var planarFaces = solid.Faces
+                .OfType<PlanarFace>()
+                .Where(f => f != null)
+                .ToList();
+
+            if (!planarFaces.Any()) return null;
+
+            PlanarFace targetFace = null;
+
+            switch (direction.ToLower())
+            {
+                case "side":
+                    targetFace = planarFaces
+                        .Where(f => Math.Abs(f.FaceNormal.Y) > 0.9 || Math.Abs(f.FaceNormal.Y) < -0.9)
+                        .OrderByDescending(f => f.Origin.Y)
+                        .FirstOrDefault();
+                    break;
+
+                case "service_side":
+                    targetFace = planarFaces
+                        .Where(f => Math.Abs(f.FaceNormal.Y) > 0.9 || Math.Abs(f.FaceNormal.Y) < -0.9)
+                        .OrderBy(f => f.Origin.Y)
+                        .FirstOrDefault();
+                    break;
+
+                case "up":
+                    targetFace = planarFaces
+                        .Where(f => Math.Abs(f.FaceNormal.Z) > 0.9 || Math.Abs(f.FaceNormal.Z) < -0.9)
+                        .OrderByDescending(f => f.Origin.Z)
+                        .FirstOrDefault();
+                    break;
+
+                case "down":
+                    targetFace = planarFaces
+                        .Where(f => Math.Abs(f.FaceNormal.Z) > 0.9 || Math.Abs(f.FaceNormal.Z) < -0.9)
+                        .OrderBy(f => f.Origin.Z)
+                        .FirstOrDefault();
+                    break;
+            }
+
+            return targetFace != null ? GetFaceCenter(targetFace) : null;
+        }
+
+        private XYZ GetFaceCenter(Face face)
+        {
+            if (face == null) return XYZ.Zero;
+
+            var facePoints = new List<XYZ>();
+
+            foreach (EdgeArray edgeArray in face.EdgeLoops)
+            {
+                foreach (Edge edge in edgeArray)
+                {
+                    facePoints.AddRange(edge.Tessellate());
+                }
+            }
+
+            if (facePoints.Count == 0) return XYZ.Zero;
+
+            double avgX = facePoints.Average(p => p.X);
+            double avgY = facePoints.Average(p => p.Y);
+            double avgZ = facePoints.Average(p => p.Z);
+
+            return new XYZ(avgX, avgY, avgZ);
+        }
+
+        private Solid GetSolidFromElement(Element element)
+        {
+            var options = new Options
+            {
+                ComputeReferences = true,
+                IncludeNonVisibleObjects = false,
+                DetailLevel = ViewDetailLevel.Fine
+            };
+
+            GeometryElement geomElem = element.get_Geometry(options);
+
+            if (geomElem == null) return null;
+
+            foreach (GeometryObject geomObj in geomElem)
+            {
+                if (geomObj is Solid solid && solid.Faces.Size > 0)
+                    return solid;
+
+                if (geomObj is GeometryInstance instance)
+                {
+                    var instanceGeom = instance.GetInstanceGeometry();
+                    foreach (GeometryObject instObj in instanceGeom)
+                    {
+                        if (instObj is Solid instSolid && instSolid.Faces.Size > 0)
+                            return instSolid;
+                    }
+                }
+            }
+
+            return null;
+        }
     }
 }

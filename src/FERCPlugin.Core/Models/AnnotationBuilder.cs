@@ -85,6 +85,17 @@ namespace FERCPlugin.Core.Models
                 .FirstOrDefault(v => v.Name.Equals(viewName, StringComparison.OrdinalIgnoreCase));
         }
 
+        public void InsertPngAnnotations()
+        {
+            using Transaction tx = new Transaction(_doc, "Insert PNG Annotations");
+            tx.Start();
+
+            ProcessElements(_intakeElements, _intakeServiceSide);
+            ProcessElements(_exhaustElements, _exhaustServiceSide);
+
+            tx.Commit();
+        }
+
         private void CreateTopVerticalDimensions(List<Tuple<Element, VentUnitItem>> elements)
         {
             using (Transaction tx = new Transaction(_doc, "Creating top vertical dimensions"))
@@ -111,7 +122,7 @@ namespace FERCPlugin.Core.Models
                         maxWidthElement = element;
                     }
 
-                    List<Reference> verticalFaces = GetParallelFaces(element.Item1, XYZ.BasisX);
+                    var verticalFaces = GetParallelFaces(element.Item1, XYZ.BasisX);
                     if (verticalFaces.Any())
                     {
                         double elementMinX = verticalFaces.Select(f => GetFaceCenter(f).X).Min();
@@ -133,43 +144,46 @@ namespace FERCPlugin.Core.Models
                     }
                 }
 
-                if (maxWidthElement == null || minWidthElement == null || leftmostElement == null)
-                {
-                    TaskDialog.Show("Ошибка", "Не удалось найти нужные элементы.");
-                    return;
-                }
-
-                List<Reference> maxWidthFaces = GetParallelFaces(maxWidthElement.Item1, XYZ.BasisY);
-                if (maxWidthFaces.Count < 2) return;
-
-                Reference maxWidthLeftFace = maxWidthFaces.OrderBy(f => GetFaceCenter(f).Y).First();
-                Reference maxWidthRightFace = maxWidthFaces.OrderBy(f => GetFaceCenter(f).Y).Last();
-
-                List<Reference> minWidthFaces = GetParallelFaces(minWidthElement.Item1, XYZ.BasisY);
-                if (minWidthFaces.Count < 2) return;
-
-                Reference minWidthLeftFace = minWidthFaces.OrderBy(f => GetFaceCenter(f).Y).First();
-                Reference minWidthRightFace = minWidthFaces.OrderBy(f => GetFaceCenter(f).Y).Last();
-
                 XYZ leftmostFacePosition = new XYZ(minX, 0, 0);
 
-                ReferenceArray maxWidthRefArray = new ReferenceArray();
-                maxWidthRefArray.Append(maxWidthLeftFace);
-                maxWidthRefArray.Append(maxWidthRightFace);
-                Line maxWidthDimLine = Line.CreateBound(leftmostFacePosition + new XYZ(-2, 0, 0), leftmostFacePosition + new XYZ(-2, 10, 0));
-                _doc.FamilyCreate.NewDimension(_refView, maxWidthDimLine, maxWidthRefArray);
+                if (maxWidthElement != null && leftmostElement != null)
+                {
+                    var maxWidthFaces = GetParallelFaces(maxWidthElement.Item1, XYZ.BasisY);
+                    if (maxWidthFaces.Count >= 2)
+                    {
+                        Reference maxLeft = maxWidthFaces.OrderBy(f => GetFaceCenter(f).Y).First();
+                        Reference maxRight = maxWidthFaces.OrderBy(f => GetFaceCenter(f).Y).Last();
 
-                ReferenceArray minWidthRefArray = new ReferenceArray();
-                minWidthRefArray.Append(minWidthLeftFace);
-                minWidthRefArray.Append(minWidthRightFace);
-                Line minWidthDimLine = Line.CreateBound(leftmostFacePosition + new XYZ(-1, 0, 0), leftmostFacePosition + new XYZ(-1, 10, 0));
-                _doc.FamilyCreate.NewDimension(_refView, minWidthDimLine, minWidthRefArray);
+                        ReferenceArray refArray = new ReferenceArray();
+                        refArray.Append(maxLeft);
+                        refArray.Append(maxRight);
+
+                        Line dimLine = Line.CreateBound(leftmostFacePosition + new XYZ(-2, 0, 0), leftmostFacePosition + new XYZ(-2, 10, 0));
+                        _doc.FamilyCreate.NewDimension(_refView, dimLine, refArray);
+                    }
+                }
+
+                if (minWidthElement != null && leftmostElement != null)
+                {
+                    var minWidthFaces = GetParallelFaces(minWidthElement.Item1, XYZ.BasisY);
+                    if (minWidthFaces.Count >= 2)
+                    {
+                        Reference minLeft = minWidthFaces.OrderBy(f => GetFaceCenter(f).Y).First();
+                        Reference minRight = minWidthFaces.OrderBy(f => GetFaceCenter(f).Y).Last();
+
+                        ReferenceArray refArray = new ReferenceArray();
+                        refArray.Append(minLeft);
+                        refArray.Append(minRight);
+
+                        Line dimLine = Line.CreateBound(leftmostFacePosition + new XYZ(-1, 0, 0), leftmostFacePosition + new XYZ(-1, 10, 0));
+                        _doc.FamilyCreate.NewDimension(_refView, dimLine, refArray);
+                    }
+                }
 
                 tx.Commit();
+
                 tx.Start();
-
                 RemoveZeroDimensionsFromFrontView(_refView);
-
                 tx.Commit();
             }
         }
@@ -755,14 +769,9 @@ namespace FERCPlugin.Core.Models
             { "filter", "filter.png" }
         };
 
-        public void InsertPngAnnotations()
+        public void ProcessElements(List<Tuple<Element, VentUnitItem>> elements, string serviceside)
         {
-            using Transaction tx = new Transaction(_doc, "Insert PNG Annotations");
-            tx.Start();
-
-            List<Tuple<Element, VentUnitItem>> allElements = _intakeElements.Concat(_exhaustElements).ToList();
-
-            foreach (var (element, ventUnitItem) in allElements)
+            foreach (var (element, ventUnitItem) in elements)
             {
                 if (ventUnitItem.Children.Count == 0) continue;
 
@@ -781,13 +790,13 @@ namespace FERCPlugin.Core.Models
 
                 if (ventUnitItem.Children.Count == 1)
                 {
-                    string imageName = GetImageName(ventUnitItem.Children.First().Id);
+                    string imageName = GetImageName(ventUnitItem.Children.First().Id, serviceside);
                     if (string.IsNullOrEmpty(imageName)) continue;
 
                     XYZ imagePosition = new XYZ(
                         startX + (ventUnitItem.LengthTotal * MM_TO_FEET) / 2,
                         leftMostPoint.Y,
-                        faceCenter.Z 
+                        faceCenter.Z - 0.5
                     );
                     PlaceImage(imagePosition, imageName);
                 }
@@ -795,7 +804,7 @@ namespace FERCPlugin.Core.Models
                 {
                     foreach (var child in ventUnitItem.Children)
                     {
-                        string imageName = GetImageName(child.Id);
+                        string imageName = GetImageName(child.Id, serviceside);
                         if (string.IsNullOrEmpty(imageName)) continue;
 
                         double centerX = startX + currentOffset + ((child.LengthTotal * MM_TO_FEET) / 2);
@@ -803,7 +812,7 @@ namespace FERCPlugin.Core.Models
                         XYZ imagePosition = new XYZ(
                             centerX,
                             leftMostPoint.Y,
-                            faceCenter.Z 
+                            faceCenter.Z - 0.5
                         );
 
                         PlaceImage(imagePosition, imageName);
@@ -811,8 +820,6 @@ namespace FERCPlugin.Core.Models
                     }
                 }
             }
-
-            tx.Commit();
         }
 
         private XYZ GetFaceCenter(Face face)
@@ -853,8 +860,15 @@ namespace FERCPlugin.Core.Models
             return edgePoints.OrderBy(p => p.X).ThenByDescending(p => p.Z).FirstOrDefault();
         }
 
-        private string GetImageName(string id)
+        private string GetImageName(string id, string serviceSide)
         {
+            if (id.IndexOf("fan", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return serviceSide.Equals("right", StringComparison.OrdinalIgnoreCase)
+                    ? "fanRight.png"
+                    : "fanLeft.png";
+            }
+
             return _imageMappings.FirstOrDefault(kvp => id.IndexOf(kvp.Key, StringComparison.OrdinalIgnoreCase) >= 0).Value;
         }
 
